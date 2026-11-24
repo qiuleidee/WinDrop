@@ -84,5 +84,5 @@ WinDrop 已直接适配 **Apple 官方 iCloud 公证签名的成品快捷指令*
    - *搭好后长按快捷指令 → 共享 → 拷贝 iCloud 链接，即可得到由你自己的 Apple 账号官方签名的分享直链！*
 
 ### 方式 B：用已登录 iCloud 的 Mac 签署 `.shortcut` 包
-> 注：Apple 官方命令行工具 `shortcuts sign --mode anyone` 强制要求当前 Mac 已登录 iCloud，因此免费的 GitHub 云端无头 Mac 虚拟机无法完成签名。
-- 如果你手头有已登录 iCloud 的 Mac：将 `shortcuts/` 拷贝到 Mac 运行 `bash sign_on_mac.sh` 即可生成带 Apple 签名的 `.shortcut` 文件，或将你自己的 Mac 绑定为仓库的 `self-hosted` runner 后手动触发 `.github/workflows/sign-shortcuts.yml`。
+> 注：Apple 官方命令行工具 `shortcuts sign --mode anyone` 强制要求当前 Mac 已登录 iCloud，因此免费的云端无头虚拟机无法完成签名。
+- 如果你手头有已登录 iCloud 的 Mac：将 `shortcuts/` 拷贝到 Mac 运行 `bash sign_on_mac.sh`（先替换为自己的 `<电脑名>.local` 与密钥）即可生成带 Apple 签名的 `.shortcut` 文件。

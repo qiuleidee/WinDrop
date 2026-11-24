@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>WFWorkflowClientVersion</key>
-    <string>2302.0.4</string>
+    <string>3107.0.10</string>
     <key>WFWorkflowMinimumClientVersion</key>
     <integer>900</integer>
     <key>WFWorkflowMinimumClientVersionString</key>
@@ -13,6 +13,8 @@
     <key>WFWorkflowHasShortcutInputVariables</key>
     <false/>
     <key>WFWorkflowImportQuestions</key>
+    <array/>
+    <key>WFQuickActionSurfaces</key>
     <array/>
     <key>WFWorkflowIcon</key>
     <dict>
@@ -35,13 +37,13 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>UUID</key>
-                <string>B6BC7DCE-E738-4CB2-BC5D-8BA5FFE592AF</string>
-                <key>Advanced</key>
+                <string>8B355219-F46F-4634-A5DB-15D200269A8B</string>
+                <key>ShowHeaders</key>
                 <true/>
                 <key>WFHTTPMethod</key>
                 <string>GET</string>
                 <key>WFURL</key>
-                <string>http://DESKTOP-121125.local:58446/v2/receive</string>
+                <string>http://YOUR-PC.local:58446/v2/receive</string>
                 <key>WFHTTPHeaders</key>
                 <dict>
                     <key>Value</key>
@@ -54,24 +56,14 @@
     <key>WFKey</key>
     <dict>
         <key>Value</key>
-        <dict>
-            <key>attachmentsByRange</key>
-            <dict/>
-            <key>string</key>
-            <string>Authorization</string>
-        </dict>
+        <dict><key>string</key><string>Authorization</string></dict>
         <key>WFSerializationType</key>
         <string>WFTextTokenString</string>
     </dict>
     <key>WFValue</key>
     <dict>
         <key>Value</key>
-        <dict>
-            <key>attachmentsByRange</key>
-            <dict/>
-            <key>string</key>
-            <string>ql123456</string>
-        </dict>
+        <dict><key>string</key><string>YOUR_KEY</string></dict>
         <key>WFSerializationType</key>
         <string>WFTextTokenString</string>
     </dict>
@@ -89,15 +81,17 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>UUID</key>
-        <string>1812045A-0878-4B96-AF41-A0237BB42CFA</string>
+        <string>98F81B80-2F2F-4FBC-8260-3B3D350766F7</string>
         <key>WFDictionaryKey</key>
         <string>action</string>
         <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>B6BC7DCE-E738-4CB2-BC5D-8BA5FFE592AF</string>
+                <string>8B355219-F46F-4634-A5DB-15D200269A8B</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -113,7 +107,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>A1FAB1B8-CB5E-4441-BC65-3F5377B29DA2</string>
+        <string>AC5BE670-3E8A-4523-869E-2375F4136410</string>
         <key>WFCondition</key>
         <integer>4</integer>
         <key>WFConditionalActionString</key>
@@ -128,8 +122,19 @@
             <dict>
                 <key>Value</key>
                 <dict>
+                    <key>Aggrandizements</key>
+                    <array>
+                        <dict>
+                            <key>CoercionItemClass</key>
+                            <string>WFStringContentItem</string>
+                            <key>Type</key>
+                            <string>WFCoercionVariableAggrandizement</string>
+                        </dict>
+                    </array>
+                    <key>OutputName</key>
+                    <string>词典值</string>
                     <key>OutputUUID</key>
-                    <string>1812045A-0878-4B96-AF41-A0237BB42CFA</string>
+                    <string>98F81B80-2F2F-4FBC-8260-3B3D350766F7</string>
                     <key>Type</key>
                     <string>ActionOutput</string>
                 </dict>
@@ -145,15 +150,17 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>UUID</key>
-        <string>223D25A0-178D-44E7-84B2-E82B6DAE5A8C</string>
+        <string>47426512-1CC6-4E99-9BBD-94F89C81BA16</string>
         <key>WFDictionaryKey</key>
         <string>text</string>
         <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>B6BC7DCE-E738-4CB2-BC5D-8BA5FFE592AF</string>
+                <string>8B355219-F46F-4634-A5DB-15D200269A8B</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -171,8 +178,10 @@
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>词典值</string>
                 <key>OutputUUID</key>
-                <string>223D25A0-178D-44E7-84B2-E82B6DAE5A8C</string>
+                <string>47426512-1CC6-4E99-9BBD-94F89C81BA16</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -187,7 +196,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>A1FAB1B8-CB5E-4441-BC65-3F5377B29DA2</string>
+        <string>AC5BE670-3E8A-4523-869E-2375F4136410</string>
         <key>WFControlFlowMode</key>
         <integer>2</integer>
     </dict>
@@ -199,7 +208,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>B0273B14-426F-4A19-A3FA-08F6879E5825</string>
+        <string>CEC755F9-29B4-4A66-AF17-6E2A5EBDE666</string>
         <key>WFCondition</key>
         <integer>4</integer>
         <key>WFConditionalActionString</key>
@@ -214,8 +223,19 @@
             <dict>
                 <key>Value</key>
                 <dict>
+                    <key>Aggrandizements</key>
+                    <array>
+                        <dict>
+                            <key>CoercionItemClass</key>
+                            <string>WFStringContentItem</string>
+                            <key>Type</key>
+                            <string>WFCoercionVariableAggrandizement</string>
+                        </dict>
+                    </array>
+                    <key>OutputName</key>
+                    <string>词典值</string>
                     <key>OutputUUID</key>
-                    <string>1812045A-0878-4B96-AF41-A0237BB42CFA</string>
+                    <string>98F81B80-2F2F-4FBC-8260-3B3D350766F7</string>
                     <key>Type</key>
                     <string>ActionOutput</string>
                 </dict>
@@ -231,15 +251,17 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>UUID</key>
-        <string>149ADB54-A00B-4AF2-86CB-2B83FC42470C</string>
+        <string>552D2514-E05C-4E92-9B5B-1BA4006C4BCF</string>
         <key>WFDictionaryKey</key>
         <string>text</string>
         <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>B6BC7DCE-E738-4CB2-BC5D-8BA5FFE592AF</string>
+                <string>8B355219-F46F-4634-A5DB-15D200269A8B</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -257,8 +279,10 @@
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>词典值</string>
                 <key>OutputUUID</key>
-                <string>149ADB54-A00B-4AF2-86CB-2B83FC42470C</string>
+                <string>552D2514-E05C-4E92-9B5B-1BA4006C4BCF</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -273,7 +297,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>B0273B14-426F-4A19-A3FA-08F6879E5825</string>
+        <string>CEC755F9-29B4-4A66-AF17-6E2A5EBDE666</string>
         <key>WFControlFlowMode</key>
         <integer>2</integer>
     </dict>
@@ -285,15 +309,17 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>UUID</key>
-        <string>096A21FE-6232-4CF8-A7C3-FA862FC2C93D</string>
+        <string>E54C92DF-E8D0-4729-B073-252285AD5026</string>
         <key>WFDictionaryKey</key>
         <string>urls</string>
         <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>B6BC7DCE-E738-4CB2-BC5D-8BA5FFE592AF</string>
+                <string>8B355219-F46F-4634-A5DB-15D200269A8B</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -308,15 +334,17 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>GroupingIdentifier</key>
-                <string>4BEEE908-7B95-495E-8F1A-2127D50FDC1E</string>
+                <string>47B03293-137F-4E31-8304-A3481C871EB3</string>
                 <key>WFControlFlowMode</key>
                 <integer>0</integer>
                 <key>WFInput</key>
                 <dict>
                     <key>Value</key>
                     <dict>
+                        <key>OutputName</key>
+                        <string>词典值</string>
                         <key>OutputUUID</key>
-                        <string>096A21FE-6232-4CF8-A7C3-FA862FC2C93D</string>
+                        <string>E54C92DF-E8D0-4729-B073-252285AD5026</string>
                         <key>Type</key>
                         <string>ActionOutput</string>
                     </dict>
@@ -331,7 +359,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>UUID</key>
-                <string>6C340845-9441-4AB4-A508-82321CDA2472</string>
+                <string>44E70B6B-79A4-426F-B180-CD30F278246C</string>
                 <key>WFHTTPMethod</key>
                 <string>GET</string>
                 <key>WFURL</key>
@@ -362,7 +390,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>132BCF27-1407-4F73-9660-096D81109B16</string>
+        <string>6B6F12DC-E2A8-47B1-AADC-9CE43F023BA1</string>
         <key>WFCondition</key>
         <integer>4</integer>
         <key>WFConditionalActionString</key>
@@ -377,8 +405,19 @@
             <dict>
                 <key>Value</key>
                 <dict>
+                    <key>Aggrandizements</key>
+                    <array>
+                        <dict>
+                            <key>CoercionItemClass</key>
+                            <string>WFStringContentItem</string>
+                            <key>Type</key>
+                            <string>WFCoercionVariableAggrandizement</string>
+                        </dict>
+                    </array>
+                    <key>OutputName</key>
+                    <string>词典值</string>
                     <key>OutputUUID</key>
-                    <string>1812045A-0878-4B96-AF41-A0237BB42CFA</string>
+                    <string>98F81B80-2F2F-4FBC-8260-3B3D350766F7</string>
                     <key>Type</key>
                     <string>ActionOutput</string>
                 </dict>
@@ -393,12 +432,15 @@
     <string>is.workflow.actions.savetocameraroll</string>
     <key>WFWorkflowActionParameters</key>
     <dict>
-        <key>WFInput</key>
+                <key>WFCameraRollSelectedGroup</key>
+                <string>Recents</string>        <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>6C340845-9441-4AB4-A508-82321CDA2472</string>
+                <string>44E70B6B-79A4-426F-B180-CD30F278246C</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -413,7 +455,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>132BCF27-1407-4F73-9660-096D81109B16</string>
+        <string>6B6F12DC-E2A8-47B1-AADC-9CE43F023BA1</string>
         <key>WFControlFlowMode</key>
         <integer>1</integer>
     </dict>
@@ -423,12 +465,15 @@
     <string>is.workflow.actions.documentpicker.save</string>
     <key>WFWorkflowActionParameters</key>
     <dict>
-        <key>WFInput</key>
+                <key>WFAskWhereToSave</key>
+                <false/>        <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>6C340845-9441-4AB4-A508-82321CDA2472</string>
+                <string>44E70B6B-79A4-426F-B180-CD30F278246C</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -443,7 +488,7 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>GroupingIdentifier</key>
-        <string>132BCF27-1407-4F73-9660-096D81109B16</string>
+        <string>6B6F12DC-E2A8-47B1-AADC-9CE43F023BA1</string>
         <key>WFControlFlowMode</key>
         <integer>2</integer>
     </dict>
@@ -454,7 +499,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>GroupingIdentifier</key>
-                <string>4BEEE908-7B95-495E-8F1A-2127D50FDC1E</string>
+                <string>47B03293-137F-4E31-8304-A3481C871EB3</string>
                 <key>WFControlFlowMode</key>
                 <integer>2</integer>
             </dict>
@@ -466,15 +511,17 @@
     <key>WFWorkflowActionParameters</key>
     <dict>
         <key>UUID</key>
-        <string>45D59C64-FB9B-477F-BE74-A2E1D62F8180</string>
+        <string>7F6719AB-76C2-4318-8E99-7A4E26AA71F6</string>
         <key>WFDictionaryKey</key>
         <string>summary</string>
         <key>WFInput</key>
         <dict>
             <key>Value</key>
             <dict>
+                <key>OutputName</key>
+                <string>URL 的内容</string>
                 <key>OutputUUID</key>
-                <string>B6BC7DCE-E738-4CB2-BC5D-8BA5FFE592AF</string>
+                <string>8B355219-F46F-4634-A5DB-15D200269A8B</string>
                 <key>Type</key>
                 <string>ActionOutput</string>
             </dict>
@@ -498,8 +545,10 @@
                 <dict>
                     <key>{0, 1}</key>
                     <dict>
+                        <key>OutputName</key>
+                        <string>词典值</string>
                         <key>OutputUUID</key>
-                        <string>45D59C64-FB9B-477F-BE74-A2E1D62F8180</string>
+                        <string>7F6719AB-76C2-4318-8E99-7A4E26AA71F6</string>
                         <key>Type</key>
                         <string>ActionOutput</string>
                     </dict>

@@ -15,7 +15,7 @@ public sealed record LocalNetworkEndpoint(
 
 /// <summary>
 /// 多网卡局域网 IP 智能探测与可用端口分配器
-/// 优先选择物理无线网卡（如 Intel Wireless-AC 9462）、Windows 移动热点（192.168.137.1）与物理有线网卡
+/// 优先选择物理 Wi-Fi 网卡、Windows 移动热点（192.168.137.1）与物理有线网卡
 /// </summary>
 public static class NetworkHelper
 {
@@ -67,7 +67,7 @@ public static class NetworkHelper
                 }
                 else if (!isVirtualBridge && nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211)
                 {
-                    priority = 100; // 物理 Wi-Fi 网卡最高优（如 Intel Wireless-AC 9462）
+                    priority = 100; // 物理 Wi-Fi 网卡最高优
                 }
                 else if (!isVirtualBridge && nic.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
                 {

@@ -1,7 +1,7 @@
 # WinDrop — Windows 右键/复制 ⇄ iOS 快捷指令极简隔空互传工具
 
 **WinDrop** 是一款参考并增强自 [AirDropPlus](https://github.com/yeyt97/AirDropPlus) / [AirDropPlus.Net](https://github.com/qiuleidee/AirDropPlus.Net) 思路的 Windows 原生轻量互传工具：
-- **不挑任何电脑网卡**：100% 兼容任意内置无线/有线网卡（含 `Intel(R) Wireless-AC 9462`），零内核驱动、无 WebView2 臃肿依赖。
+- **不挑任何电脑网卡**：100% 兼容任意内置无线/有线网卡，零内核驱动、无 WebView2 臃肿依赖。
 - **成品官方签名快捷指令开箱即用**：直接提供已通过 Apple iCloud 官方签名的成品快捷指令（扫码点一下「添加」即可，无需手动编写任何动作）。
 - **最符合直觉的极简交互**：
   - **Windows → iPhone**：电脑端只需对文件点 **右键「通过 WinDrop 分享」** 或直接 **`Ctrl + C` 复制（文件 / 截图 / 文字）**，iPhone 运行快捷指令点「接收」即可秒收！
@@ -19,7 +19,7 @@
 4. **手机扫码一键引导页（`/setup`）**：扫码即可点击跳转安装 Apple 官方签名快捷指令，并支持一键复制 `host`、`port`、`key` 三项参数。
 5. **可选自动将 iPhone HEIC 照片转为 JPG**：调用 Windows 原生图像编码器自动转换。
 6. **电脑主动推送唤醒 iPhone 一键接收（升级项 #1）**：支持接入免费开源的 **Bark (APNs)**（含自建服务器）。右键分享文件或按下全局热键 **`Ctrl + Shift + D`** 推送剪贴板时，iPhone 锁屏/顶部横幅立刻弹窗，轻点通知直接拉起快捷指令完成局域网接收！
-7. **零菜单拆分版快捷指令引擎（升级项 #2）**：新增 `/v2/send`、`/v2/receive` 与短 Ticket `/v2/dl/{ticket}` 专线接口，自动导出包含 `url / text / image / video / file` 五路智能归档分支的拆分版 `.shortcut` 源码模板与 macOS / GitHub Actions 自动签名工作流（`.github/workflows/sign-shortcuts.yml`）。
+7. **零菜单拆分版快捷指令引擎（升级项 #2）**：新增 `/v2/send`、`/v2/receive` 与短 Ticket `/v2/dl/{ticket}` 专线接口，自动导出包含 `url / text / media / file` 四路智能归档分支的拆分版 `.shortcut` 源码模板与 macOS 本地签名脚本（`shortcuts/sign_on_mac.sh`）。
 
 ---
 
@@ -40,6 +40,7 @@ WinDrop/
 ├── shortcuts/                   # 导出的成品快捷指令扫码安装图片、iCloud 直达链接与模板源码
 ├── docs/
 │   ├── PRD.md                   # 产品需求规格文档
+│   ├── UPGRADE_ROADMAP.md       # 进阶优化与升级路线图
 │   └── IOS_SHORTCUTS_GUIDE.md   # 成品快捷指令安装与使用指南
 ├── src/
 │   ├── WinDrop.Core/            # 核心流式 HTTP 服务、双域名 mDNS、路径白名单与沙箱清洗
@@ -53,9 +54,9 @@ WinDrop/
 dotnet build WinDrop.sln -c Release
 dotnet test tests/WinDrop.Tests/WinDrop.Tests.csproj -c Release
 
-# 发布生产运行包并导出快捷指令资产包
+# 发布生产运行包并导出脱敏后的公开快捷指令模板
 dotnet publish src/WinDrop.App/WinDrop.App.csproj -c Release -o dist/WinDrop
-.\dist\WinDrop\WinDrop.exe --export-shortcuts shortcuts
+.\dist\WinDrop\WinDrop.exe --export-shortcuts shortcuts --template
 ```
 
 ## 许可证

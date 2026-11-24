@@ -212,8 +212,8 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
     [Fact]
     public void ShortcutBuilder_GeneratesValidXmlPlistWithCompleteV2WorkflowActions()
     {
-        byte[] sendBytes = ShortcutBuilderService.BuildSendToWindowsShortcutPlist("DESKTOP-121125.local", 58446, "k12345");
-        byte[] recvBytes = ShortcutBuilderService.BuildReceiveFromWindowsShortcutPlist("DESKTOP-121125.local", 58446, "k12345");
+        byte[] sendBytes = ShortcutBuilderService.BuildSendToWindowsShortcutPlist("MY-PC.local", 58446, "k12345");
+        byte[] recvBytes = ShortcutBuilderService.BuildReceiveFromWindowsShortcutPlist("MY-PC.local", 58446, "k12345");
 
         string sendXml = Encoding.UTF8.GetString(sendBytes);
         string recvXml = Encoding.UTF8.GetString(recvBytes);
@@ -225,12 +225,15 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
         Assert.Equal("plist", recvDoc.Root?.Name.LocalName);
 
         // 2. 验证关键动作标识符与接口地址均已准确生成
-        Assert.Contains("http://DESKTOP-121125.local:58446/v2/send", sendXml);
+        Assert.Contains("http://MY-PC.local:58446/v2/send", sendXml);
         Assert.Contains("<integer>5</integer>", sendXml);
+        Assert.Contains("WFTokenAttachmentParameterState", sendXml);
+        Assert.Contains("ShowHeaders", sendXml);
+        Assert.Contains("is.workflow.actions.count", sendXml);
         Assert.Contains("is.workflow.actions.repeat.each", sendXml);
         Assert.Contains("is.workflow.actions.notification", sendXml);
 
-        Assert.Contains("http://DESKTOP-121125.local:58446/v2/receive", recvXml);
+        Assert.Contains("http://MY-PC.local:58446/v2/receive", recvXml);
         Assert.Contains("<string>action</string>", recvXml);
         Assert.Contains("<string>urls</string>", recvXml);
         Assert.Contains("<string>summary</string>", recvXml);

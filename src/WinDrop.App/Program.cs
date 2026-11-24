@@ -41,11 +41,12 @@ public sealed class WinDropApplication : System.Windows.Application
     [STAThread]
     public static int Main(string[] args)
     {
-        // 支持一键导出快捷指令二维码与模板资产（供打包构建使用）
+        // 支持一键导出快捷指令二维码与模板资产（传 --template 时导出不含本机密钥与主机名的公开模板）
         int exportIdx = Array.FindIndex(args, a => string.Equals(a, "--export-shortcuts", StringComparison.OrdinalIgnoreCase));
         if (exportIdx >= 0 && exportIdx + 1 < args.Length)
         {
-            ExportShortcutAssets(args[exportIdx + 1]);
+            bool useTemplate = args.Any(a => string.Equals(a, "--template", StringComparison.OrdinalIgnoreCase));
+            ExportShortcutAssets(args[exportIdx + 1], useTemplate);
             return 0;
         }
 
@@ -65,13 +66,13 @@ public sealed class WinDropApplication : System.Windows.Application
         return app.Run();
     }
 
-    private static void ExportShortcutAssets(string outputDir)
+    private static void ExportShortcutAssets(string outputDir, bool useTemplate = false)
     {
         Directory.CreateDirectory(outputDir);
         var state = new WinDropStateService();
-        string host = $"{System.Net.Dns.GetHostName()}.local";
-        int port = state.Config.Port;
-        string key = state.Config.Key;
+        string host = useTemplate ? "YOUR-PC.local" : $"{System.Net.Dns.GetHostName()}.local";
+        int port = useTemplate ? 58446 : state.Config.Port;
+        string key = useTemplate ? "YOUR_KEY" : state.Config.Key;
 
         // 1. 导出 Apple 官方 iCloud 已签名快捷指令扫码安装 PNG
         byte[] qrPng = QrAndPathHelper.GenerateQrPngBytes(QrAndPathHelper.OfficialSignedShortcutUrl, 14);

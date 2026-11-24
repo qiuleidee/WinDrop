@@ -18,16 +18,19 @@ public static class ShortcutBuilderService
     private const string ActionRepeatEach = "is.workflow.actions.repeat.each";
     private const string ActionSaveToPhotoAlbum = "is.workflow.actions.savetocameraroll";
     private const string ActionSaveFile = "is.workflow.actions.documentpicker.save";
+    private const string ActionCount = "is.workflow.actions.count";
     private const string RangeZeroOneKey = "{0, 1}";
+    private const string RangeTenOneKey = "{10, 1}";
 
     /// <summary>
     /// 生成「发送到电脑（共享表单自动发）」完整动作流 Plist
-    /// 动作流：共享表单输入 -> POST /v2/send (Multipart Form: file) -> 显示结果通知
+    /// 动作流：统计共享表单数量 -> 循环逐项 POST /v2/send (Multipart Form: file) -> 显示结果通知
     /// </summary>
     public static byte[] BuildSendToWindowsShortcutPlist(string host, int port, string key)
     {
         string sendUrl = SecurityElement.Escape($"http://{host}:{port}/v2/send")!;
         string escapedKey = SecurityElement.Escape(key)!;
+        string countUuid = Guid.NewGuid().ToString().ToUpperInvariant();
         string repeatGroupId = Guid.NewGuid().ToString().ToUpperInvariant();
         string httpActionUuid = Guid.NewGuid().ToString().ToUpperInvariant();
 
@@ -37,7 +40,7 @@ public static class ShortcutBuilderService
             <plist version="1.0">
             <dict>
                 <key>WFWorkflowClientVersion</key>
-                <string>2302.0.4</string>
+                <string>3107.0.10</string>
                 <key>WFWorkflowMinimumClientVersion</key>
                 <integer>900</integer>
                 <key>WFWorkflowMinimumClientVersionString</key>
@@ -47,6 +50,8 @@ public static class ShortcutBuilderService
                 <key>WFWorkflowHasShortcutInputVariables</key>
                 <true/>
                 <key>WFWorkflowImportQuestions</key>
+                <array/>
+                <key>WFQuickActionSurfaces</key>
                 <array/>
                 <key>WFWorkflowIcon</key>
                 <dict>
@@ -73,6 +78,24 @@ public static class ShortcutBuilderService
                 <array>
                     <dict>
                         <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionCount}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>UUID</key>
+                            <string>{countUuid}</string>
+                            <key>WFCountType</key>
+                            <string>Items</string>
+                            <key>Input</key>
+                            <dict>
+                                <key>Value</key>
+                                <dict><key>Type</key><string>ExtensionInput</string></dict>
+                                <key>WFSerializationType</key>
+                                <string>WFTextTokenAttachment</string>
+                            </dict>
+                        </dict>
+                    </dict>
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
                         <string>{ActionRepeatEach}</string>
                         <key>WFWorkflowActionParameters</key>
                         <dict>
@@ -96,7 +119,7 @@ public static class ShortcutBuilderService
                         <dict>
                             <key>UUID</key>
                             <string>{httpActionUuid}</string>
-                            <key>Advanced</key>
+                            <key>ShowHeaders</key>
                             <true/>
                             <key>WFHTTPMethod</key>
                             <string>POST</string>
@@ -128,12 +151,7 @@ public static class ShortcutBuilderService
                                             <key>WFKey</key>
                                             <dict>
                                                 <key>Value</key>
-                                                <dict>
-                                                    <key>attachmentsByRange</key>
-                                                    <dict/>
-                                                    <key>string</key>
-                                                    <string>file</string>
-                                                </dict>
+                                                <dict><key>string</key><string>file</string></dict>
                                                 <key>WFSerializationType</key>
                                                 <string>WFTextTokenString</string>
                                             </dict>
@@ -141,13 +159,18 @@ public static class ShortcutBuilderService
                                             <dict>
                                                 <key>Value</key>
                                                 <dict>
-                                                    <key>Type</key>
-                                                    <string>Variable</string>
-                                                    <key>VariableName</key>
-                                                    <string>Repeat Item</string>
+                                                    <key>Value</key>
+                                                    <dict>
+                                                        <key>Type</key>
+                                                        <string>Variable</string>
+                                                        <key>VariableName</key>
+                                                        <string>Repeat Item</string>
+                                                    </dict>
+                                                    <key>WFSerializationType</key>
+                                                    <string>WFTextTokenAttachment</string>
                                                 </dict>
                                                 <key>WFSerializationType</key>
-                                                <string>WFTextTokenAttachment</string>
+                                                <string>WFTokenAttachmentParameterState</string>
                                             </dict>
                                         </dict>
                                     </array>
@@ -181,18 +204,18 @@ public static class ShortcutBuilderService
                                 <dict>
                                     <key>attachmentsByRange</key>
                                     <dict>
-                                        <key>{RangeZeroOneKey}</key>
+                                        <key>{RangeTenOneKey}</key>
                                         <dict>
                                             <key>OutputName</key>
-                                            <string>URL 的内容</string>
+                                            <string>计数</string>
                                             <key>OutputUUID</key>
-                                            <string>{httpActionUuid}</string>
+                                            <string>{countUuid}</string>
                                             <key>Type</key>
                                             <string>ActionOutput</string>
                                         </dict>
                                     </dict>
                                     <key>string</key>
-                                    <string>&#xFFFC;</string>
+                                    <string>已全部发送到电脑（共&#xFFFC;项）</string>
                                 </dict>
                                 <key>WFSerializationType</key>
                                 <string>WFTextTokenString</string>
@@ -235,7 +258,7 @@ public static class ShortcutBuilderService
             <plist version="1.0">
             <dict>
                 <key>WFWorkflowClientVersion</key>
-                <string>2302.0.4</string>
+                <string>3107.0.10</string>
                 <key>WFWorkflowMinimumClientVersion</key>
                 <integer>900</integer>
                 <key>WFWorkflowMinimumClientVersionString</key>
@@ -245,6 +268,8 @@ public static class ShortcutBuilderService
                 <key>WFWorkflowHasShortcutInputVariables</key>
                 <false/>
                 <key>WFWorkflowImportQuestions</key>
+                <array/>
+                <key>WFQuickActionSurfaces</key>
                 <array/>
                 <key>WFWorkflowIcon</key>
                 <dict>
@@ -268,7 +293,7 @@ public static class ShortcutBuilderService
                         <dict>
                             <key>UUID</key>
                             <string>{getUuid}</string>
-                            <key>Advanced</key>
+                            <key>ShowHeaders</key>
                             <true/>
                             <key>WFHTTPMethod</key>
                             <string>GET</string>
@@ -292,12 +317,12 @@ public static class ShortcutBuilderService
 
                     {BuildIfEqualsStart(actionUuid, "url", grpUrl)}
                     {BuildGetDictValueAction(getUuid, "text", urlTextUuid)}
-                    {BuildActionWithOutputInput(ActionOpenUrl, urlTextUuid)}
+                    {BuildActionWithOutputInput(ActionOpenUrl, urlTextUuid, "词典值")}
                     {BuildIfEnd(grpUrl)}
 
                     {BuildIfEqualsStart(actionUuid, "text", grpText)}
                     {BuildGetDictValueAction(getUuid, "text", clipTextUuid)}
-                    {BuildActionWithOutputInput(ActionSetClipboard, clipTextUuid)}
+                    {BuildActionWithOutputInput(ActionSetClipboard, clipTextUuid, "词典值")}
                     {BuildIfEnd(grpText)}
 
                     {BuildGetDictValueAction(getUuid, "urls", urlsUuid)}
@@ -314,6 +339,8 @@ public static class ShortcutBuilderService
                             <dict>
                                 <key>Value</key>
                                 <dict>
+                                    <key>OutputName</key>
+                                    <string>词典值</string>
                                     <key>OutputUUID</key>
                                     <string>{urlsUuid}</string>
                                     <key>Type</key>
@@ -356,9 +383,9 @@ public static class ShortcutBuilderService
                         </dict>
                     </dict>
                     {BuildIfEqualsStart(actionUuid, "media", grpMedia)}
-                    {BuildActionWithOutputInput(ActionSaveToPhotoAlbum, dlUuid)}
+                    {BuildActionWithOutputInput(ActionSaveToPhotoAlbum, dlUuid, "URL 的内容")}
                     {BuildIfElse(grpMedia)}
-                    {BuildActionWithOutputInput(ActionSaveFile, dlUuid)}
+                    {BuildActionWithOutputInput(ActionSaveFile, dlUuid, "URL 的内容")}
                     {BuildIfEnd(grpMedia)}
                     <dict>
                         <key>WFWorkflowActionIdentifier</key>
@@ -409,24 +436,14 @@ public static class ShortcutBuilderService
             <key>WFKey</key>
             <dict>
                 <key>Value</key>
-                <dict>
-                    <key>attachmentsByRange</key>
-                    <dict/>
-                    <key>string</key>
-                    <string>{keyName}</string>
-                </dict>
+                <dict><key>string</key><string>{keyName}</string></dict>
                 <key>WFSerializationType</key>
                 <string>WFTextTokenString</string>
             </dict>
             <key>WFValue</key>
             <dict>
                 <key>Value</key>
-                <dict>
-                    <key>attachmentsByRange</key>
-                    <dict/>
-                    <key>string</key>
-                    <string>{valueText}</string>
-                </dict>
+                <dict><key>string</key><string>{valueText}</string></dict>
                 <key>WFSerializationType</key>
                 <string>WFTextTokenString</string>
             </dict>
@@ -447,6 +464,8 @@ public static class ShortcutBuilderService
                 <dict>
                     <key>Value</key>
                     <dict>
+                        <key>OutputName</key>
+                        <string>URL 的内容</string>
                         <key>OutputUUID</key>
                         <string>{dictOutputUuid}</string>
                         <key>Type</key>
@@ -481,6 +500,17 @@ public static class ShortcutBuilderService
                     <dict>
                         <key>Value</key>
                         <dict>
+                            <key>Aggrandizements</key>
+                            <array>
+                                <dict>
+                                    <key>CoercionItemClass</key>
+                                    <string>WFStringContentItem</string>
+                                    <key>Type</key>
+                                    <string>WFCoercionVariableAggrandizement</string>
+                                </dict>
+                            </array>
+                            <key>OutputName</key>
+                            <string>词典值</string>
                             <key>OutputUUID</key>
                             <string>{inputOutputUuid}</string>
                             <key>Type</key>
@@ -522,27 +552,45 @@ public static class ShortcutBuilderService
         </dict>
         """;
 
-    private static string BuildActionWithOutputInput(string actionId, string inputOutputUuid) => $"""
-        <dict>
-            <key>WFWorkflowActionIdentifier</key>
-            <string>{actionId}</string>
-            <key>WFWorkflowActionParameters</key>
+    private static string BuildActionWithOutputInput(string actionId, string inputOutputUuid, string outputName)
+    {
+        string extraParam = actionId switch
+        {
+            ActionSaveToPhotoAlbum => """
+                <key>WFCameraRollSelectedGroup</key>
+                <string>Recents</string>
+""",
+            ActionSaveFile => """
+                <key>WFAskWhereToSave</key>
+                <false/>
+""",
+            _ => string.Empty
+        };
+
+        return $"""
             <dict>
-                <key>WFInput</key>
+                <key>WFWorkflowActionIdentifier</key>
+                <string>{actionId}</string>
+                <key>WFWorkflowActionParameters</key>
                 <dict>
-                    <key>Value</key>
+            {extraParam}        <key>WFInput</key>
                     <dict>
-                        <key>OutputUUID</key>
-                        <string>{inputOutputUuid}</string>
-                        <key>Type</key>
-                        <string>ActionOutput</string>
+                        <key>Value</key>
+                        <dict>
+                            <key>OutputName</key>
+                            <string>{outputName}</string>
+                            <key>OutputUUID</key>
+                            <string>{inputOutputUuid}</string>
+                            <key>Type</key>
+                            <string>ActionOutput</string>
+                        </dict>
+                        <key>WFSerializationType</key>
+                        <string>WFTextTokenAttachment</string>
                     </dict>
-                    <key>WFSerializationType</key>
-                    <string>WFTextTokenAttachment</string>
                 </dict>
             </dict>
-        </dict>
-        """;
+            """;
+    }
 
     private static string BuildSimpleNotification(string title, string bodyOutputUuid) => $"""
         <dict>
@@ -560,6 +608,8 @@ public static class ShortcutBuilderService
                         <dict>
                             <key>{RangeZeroOneKey}</key>
                             <dict>
+                                <key>OutputName</key>
+                                <string>词典值</string>
                                 <key>OutputUUID</key>
                                 <string>{bodyOutputUuid}</string>
                                 <key>Type</key>
