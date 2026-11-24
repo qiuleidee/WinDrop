@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <title>WinDrop 手机配对与系统共享设置</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card: #1e293b;
+      --border: rgba(148, 163, 184, 0.2);
+      --primary: #3b82f6;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg); color: var(--text);
+      padding: calc(env(safe-area-inset-top) + 20px) 16px calc(env(safe-area-inset-bottom) + 32px);
+      max-width: 540px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;
+    }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 18px; }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    h2 { font-size: 16px; margin-bottom: 10px; color: #60a5fa; }
+    p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+    input {
+      width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
+      background: #0f172a; color: var(--text); font-size: 16px;
+    }
+    .btn {
+      display: flex; align-items: center; justify-content: center; width: 100%;
+      padding: 13px 16px; border-radius: 14px; border: none; font-weight: 600; font-size: 15px;
+      background: var(--primary); color: #fff; cursor: pointer; margin-top: 14px; text-decoration: none;
+    }
+    .btn.secondary { background: #334155; font-size: 13px; padding: 10px 12px; margin-top: 8px; }
+    .code-box {
+      background: #0f172a; border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+      word-break: break-all; color: #38bdf8; margin-top: 6px;
+    }
+    .step-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 10px; font-size: 13px; line-height: 1.55; }
+    .step-list li { background: rgba(15, 23, 42, 0.55); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); }
+    .msg { margin-top: 10px; font-size: 13px; color: #34d399; }
+    .msg.err { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ WinDrop 手机绑定向导</h1>
+    <p>绑定一次后即可获得 256-bit 专属安全凭证，无需在 App Store 下载任何软件。</p>
+
+    <div id="pairForm">
+      <label>给这台手机起个名字（电脑弹窗时显示）</label>
+      <input id="deviceName" type="text" value="我的 iPhone" maxlength="32" />
+
+      <label>电脑屏幕上的 6 位配对码</label>
+      <input id="pinCode" type="tel" inputmode="numeric" maxlength="6" placeholder="例如 123456" />
+
+      <button class="btn" onclick="submitPair()">立即绑定这台电脑</button>
+      <div id="pairMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <div id="postSetup" style="display:none; flex-direction:column; gap:16px;">
+    <div class="card">
+      <h2>🎉 已成功绑定！立即可用方式一：隔空雷达工作台</h2>
+      <p>点击下方进入雷达页即可双向秒传原图、4K 视频与剪贴板。建议在 Safari 点击底部「分享 → 添加到主屏幕」，以后像原生 App 一样点开即传！</p>
+      <a class="btn" href="/">进入 WinDrop 隔空雷达工作台</a>
+    </div>
+
+    <div class="card">
+      <h2>📲 进阶方式二：嵌入 iOS 系统「分享菜单」（媲美原生 AirDrop）</h2>
+      <p>配置后，在相册、文件、Safari 任意界面点「分享 → 发送到 WinDrop」即可一键静默秒传电脑：</p>
+      <ul class="step-list">
+        <li><b>第 1 步</b>：打开 iPhone 自带的<b>「快捷指令」App</b>，点击右上角 <b>+</b> 新建，顶部改名为「发送到 WinDrop」，打开底部 <b>ⓘ</b> 开启<b>「在共享表单中显示」</b>。</li>
+        <li><b>第 2 步</b>：添加动作<b>「获取 URL 内容」</b>，URL 粘贴下方地址，方法选 <b>POST</b>，请求体选<b>「表单」</b>，添加字段名 <code>files</code>（类型选「文件」，值选「快捷指令输入」）。</li>
+        <li><b>第 3 步</b>：展开该动作的「头部（Headers）」，添加键 <code>X-WinDrop-Token</code>，值粘贴下方专属令牌即可永久生效！</li>
+      </ul>
+
+      <label>上传接口地址（优先使用 mDNS 域名，换 Wi-Fi 永不失效）</label>
+      <div id="mdnsUploadUrl" class="code-box"></div>
+      <button class="btn secondary" onclick="copyById('mdnsUploadUrl')">复制 mDNS 上传地址</button>
+
+      <label>备用当前局域网 IP 上传地址</label>
+      <div id="ipUploadUrl" class="code-box"></div>
+      <button class="btn secondary" onclick="copyById('ipUploadUrl')">复制当前 IP 上传地址</button>
+
+      <label>你的专属安全令牌（X-WinDrop-Token）</label>
+      <div id="tokenBox" class="code-box"></div>
+      <button class="btn secondary" onclick="copyById('tokenBox')">复制专属安全令牌</button>
+
+      <a id="downloadShortcutBtn" class="btn secondary" href="#">下载预填 .shortcut 模板文件（可选）</a>
+    </div>
+
+    <div class="card">
+      <h2>📥 进阶方式三：一键从电脑接收照片进系统相册</h2>
+      <p>在「快捷指令」App 新建「从电脑接收」，仅需两个动作：① <b>获取 URL 内容</b>（粘贴下方地址） → ② <b>存储到相簿</b>。可添加到控制中心或绑定侧边操作按钮！</p>
+      <div id="pullLatestUrl" class="code-box"></div>
+      <button class="btn secondary" onclick="copyById('pullLatestUrl')">复制一键接收地址</button>
+    </div>
+  </div>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('pin')) {
+      document.getElementById('pinCode').value = qs.get('pin');
+    }
+    const savedName = localStorage.getItem('windrop_device_name');
+    if (savedName) document.getElementById('deviceName').value = savedName;
+
+    async function initExisting() {
+      const existingToken = localStorage.getItem('windrop_device_token');
+      if (!existingToken) return;
+      try {
+        const ping = await (await fetch('/api/v1/ping')).json();
+        const check = await fetch('/api/v1/queue', { headers: { 'X-WinDrop-Token': existingToken } });
+        if (check.ok) {
+          renderEndpoints(ping.mdnsHost, ping.port, existingToken);
+        }
+      } catch {}
+    }
+
+    async function submitPair() {
+      const pinCode = document.getElementById('pinCode').value.trim();
+      const deviceName = document.getElementById('deviceName').value.trim() || '我的 iPhone';
+      const msgEl = document.getElementById('pairMsg');
+      msgEl.className = 'msg';
+      msgEl.textContent = '正在验证配对码…';
+
+      try {
+        const res = await fetch('/api/v1/pair', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pinCode, deviceName })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          msgEl.className = 'msg err';
+          msgEl.textContent = data.message || '配对失败';
+          return;
+        }
+
+        localStorage.setItem('windrop_device_token', data.deviceToken);
+        localStorage.setItem('windrop_device_name', deviceName);
+        msgEl.textContent = '✅ 已成功绑定到电脑：' + (data.hostName || '');
+        renderEndpoints(data.mdnsHost, data.port, data.deviceToken);
+      } catch (e) {
+        msgEl.className = 'msg err';
+        msgEl.textContent = '网络请求失败：' + e.message;
+      }
+    }
+
+    function renderEndpoints(mdnsHost, port, token) {
+      document.getElementById('postSetup').style.display = 'flex';
+      const ipOrigin = location.origin;
+      const mdnsOrigin = mdnsHost ? `http://${mdnsHost}:${port}` : ipOrigin;
+      document.getElementById('mdnsUploadUrl').textContent = `${mdnsOrigin}/api/v1/upload`;
+      document.getElementById('ipUploadUrl').textContent = `${ipOrigin}/api/v1/upload`;
+      document.getElementById('tokenBox').textContent = token;
+      document.getElementById('pullLatestUrl').textContent = `${ipOrigin}/api/v1/queue/latest?token=${token}`;
+      document.getElementById('downloadShortcutBtn').href = `/api/v1/shortcuts/send.shortcut?token=${encodeURIComponent(token)}`;
+    }
+
+    async function copyById(id) {
+      const text = document.getElementById(id).textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('已复制到剪贴板！');
+      } catch {
+        prompt('请长按复制：', text);
+      }
+    }
+
+    initExisting();
+  </script>
+</body>
+</html>

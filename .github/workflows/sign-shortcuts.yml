@@ -1,0 +1,56 @@
+name: 自动签署 WinDrop 拆分版 iOS 快捷指令
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'shortcuts/**'
+      - '.github/workflows/sign-shortcuts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sign-shortcuts:
+    runs-on: macos-latest
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4
+
+      - name: 校验并转换 Plist 格式后调用 Apple 官方 shortcuts 签名
+        run: |
+          cd shortcuts
+          plutil -lint "发送到电脑.shortcut"
+          plutil -lint "从电脑接收.shortcut"
+          plutil -convert binary1 "发送到电脑.shortcut" -o "send_bin.shortcut"
+          plutil -convert binary1 "从电脑接收.shortcut" -o "recv_bin.shortcut"
+          shortcuts sign --mode anyone --input "send_bin.shortcut" --output "WinDrop-Send.shortcut"
+          shortcuts sign --mode anyone --input "recv_bin.shortcut" --output "WinDrop-Receive.shortcut"
+          ls -lh WinDrop-Send.shortcut WinDrop-Receive.shortcut
+
+      - name: 上传已签名快捷指令构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDrop-Signed-Shortcuts
+          path: |
+            shortcuts/WinDrop-Send.shortcut
+            shortcuts/WinDrop-Receive.shortcut
+
+      - name: 发布免登录直链 Release (shortcuts-latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view shortcuts-latest >/dev/null 2>&1; then
+            gh release upload shortcuts-latest \
+              "shortcuts/WinDrop-Send.shortcut" \
+              "shortcuts/WinDrop-Receive.shortcut" \
+              --clobber
+          else
+            gh release create shortcuts-latest \
+              "shortcuts/WinDrop-Send.shortcut" \
+              "shortcuts/WinDrop-Receive.shortcut" \
+              --title "WinDrop 已签名拆分版 iOS 快捷指令" \
+              --notes "由 macOS Apple 官方 shortcuts sign --mode anyone 自动签名生成，iPhone Safari 点击附件即可直接添加使用。"
+          fi

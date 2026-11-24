@@ -1,0 +1,11 @@
+# 构建产物与缓存目录
+bin/
+obj/
+dist/
+publish/
+.vs/
+*.user
+*.suo
+*.log
+TestResults/
+node_modules/
