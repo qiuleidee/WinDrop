@@ -118,6 +118,18 @@ public static class V2ContentCategory
 }
 
 /// <summary>
+/// v2 零菜单拆分版快捷指令动作枚举（面向极简手机端单循环）
+/// </summary>
+public static class V2ReceiveAction
+{
+    public const string Media = "media";
+    public const string File = "file";
+    public const string Url = "url";
+    public const string Text = "text";
+    public const string Empty = "empty";
+}
+
+/// <summary>
 /// v2 接收接口单个待下载文件描述
 /// </summary>
 public sealed class V2ReceiveFileItem
@@ -134,8 +146,10 @@ public sealed class V2ReceiveFileItem
 public sealed class V2ReceiveResponse
 {
     public bool Success { get; init; }
+    public string Action { get; init; } = V2ReceiveAction.Empty;
     public string Category { get; init; } = V2ContentCategory.Empty;
     public string Summary { get; init; } = string.Empty;
     public string? Text { get; init; }
+    public List<string> Urls { get; init; } = new();
     public List<V2ReceiveFileItem> Files { get; init; } = new();
 }

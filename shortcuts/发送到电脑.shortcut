@@ -43,7 +43,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>GroupingIdentifier</key>
-                <string>8DDFE306-2019-4145-A495-07521A4D5052</string>
+                <string>E18435DE-23E0-45E1-AC5F-1DD1C74BEB52</string>
                 <key>WFControlFlowMode</key>
                 <integer>0</integer>
                 <key>WFInput</key>
@@ -61,7 +61,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>UUID</key>
-                <string>58F01437-7412-446F-9DB7-7727990DD760</string>
+                <string>073ECAD1-6672-4878-A576-D65E0C08E95B</string>
                 <key>Advanced</key>
                 <true/>
                 <key>WFHTTPMethod</key>
@@ -156,7 +156,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>GroupingIdentifier</key>
-                <string>8DDFE306-2019-4145-A495-07521A4D5052</string>
+                <string>E18435DE-23E0-45E1-AC5F-1DD1C74BEB52</string>
                 <key>WFControlFlowMode</key>
                 <integer>2</integer>
             </dict>
@@ -179,7 +179,7 @@
                                 <key>OutputName</key>
                                 <string>URL 的内容</string>
                                 <key>OutputUUID</key>
-                                <string>58F01437-7412-446F-9DB7-7727990DD760</string>
+                                <string>073ECAD1-6672-4878-A576-D65E0C08E95B</string>
                                 <key>Type</key>
                                 <string>ActionOutput</string>
                             </dict>

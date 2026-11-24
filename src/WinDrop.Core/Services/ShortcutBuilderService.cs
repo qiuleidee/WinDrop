@@ -208,8 +208,8 @@ public static class ShortcutBuilderService
     }
 
     /// <summary>
-    /// 生成「从电脑接收（零菜单直达 + 五路智能分类归档）」完整动作流 Plist
-    /// 分支：url -> Safari 打开 | text -> 拷入剪贴板 | image / video -> 存入系统相册 | file -> 存入「文件」App
+    /// 生成「从电脑接收（极简 14 核心积木单循环 + 全自动归档）」完整动作流 Plist
+    /// 分支：action=url -> 打开网址 | action=text -> 拷入剪贴板 | urls 单循环下载后按 action=media/file 存相册或「文件」App
     /// </summary>
     public static byte[] BuildReceiveFromWindowsShortcutPlist(string host, int port, string key)
     {
@@ -217,23 +217,17 @@ public static class ShortcutBuilderService
         string escapedKey = SecurityElement.Escape(key)!;
 
         string getUuid = Guid.NewGuid().ToString().ToUpperInvariant();
-        string catUuid = Guid.NewGuid().ToString().ToUpperInvariant();
-        string textUuid = Guid.NewGuid().ToString().ToUpperInvariant();
-        string filesUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string actionUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string urlTextUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string clipTextUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string urlsUuid = Guid.NewGuid().ToString().ToUpperInvariant();
         string summaryUuid = Guid.NewGuid().ToString().ToUpperInvariant();
 
         string grpUrl = Guid.NewGuid().ToString().ToUpperInvariant();
         string grpText = Guid.NewGuid().ToString().ToUpperInvariant();
-        string grpImage = Guid.NewGuid().ToString().ToUpperInvariant();
-        string grpVideo = Guid.NewGuid().ToString().ToUpperInvariant();
-        string grpFile = Guid.NewGuid().ToString().ToUpperInvariant();
-
-        string loopImgGroup = Guid.NewGuid().ToString().ToUpperInvariant();
-        string dlImgUuid = Guid.NewGuid().ToString().ToUpperInvariant();
-        string loopVidGroup = Guid.NewGuid().ToString().ToUpperInvariant();
-        string dlVidUuid = Guid.NewGuid().ToString().ToUpperInvariant();
-        string loopFileGroup = Guid.NewGuid().ToString().ToUpperInvariant();
-        string dlFileUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string grpMedia = Guid.NewGuid().ToString().ToUpperInvariant();
+        string loopGroupId = Guid.NewGuid().ToString().ToUpperInvariant();
+        string dlUuid = Guid.NewGuid().ToString().ToUpperInvariant();
 
         string xml = $"""
             <?xml version="1.0" encoding="UTF-8"?>
@@ -294,45 +288,34 @@ public static class ShortcutBuilderService
                             </dict>
                         </dict>
                     </dict>
-                    {BuildGetDictValueAction(getUuid, "category", catUuid)}
-                    {BuildGetDictValueAction(getUuid, "text", textUuid)}
-                    {BuildGetDictValueAction(getUuid, "files", filesUuid)}
-                    {BuildGetDictValueAction(getUuid, "summary", summaryUuid)}
+                    {BuildGetDictValueAction(getUuid, "action", actionUuid)}
 
-                    {BuildIfEqualsStart(catUuid, "url", grpUrl)}
-                    <dict>
-                        <key>WFWorkflowActionIdentifier</key>
-                        <string>{ActionOpenUrl}</string>
-                        <key>WFWorkflowActionParameters</key>
-                        <dict>
-                            <key>WFInput</key>
-                            <dict>
-                                <key>Value</key>
-                                <dict>
-                                    <key>OutputUUID</key>
-                                    <string>{textUuid}</string>
-                                    <key>Type</key>
-                                    <string>ActionOutput</string>
-                                </dict>
-                                <key>WFSerializationType</key>
-                                <string>WFTextTokenAttachment</string>
-                            </dict>
-                        </dict>
-                    </dict>
+                    {BuildIfEqualsStart(actionUuid, "url", grpUrl)}
+                    {BuildGetDictValueAction(getUuid, "text", urlTextUuid)}
+                    {BuildActionWithOutputInput(ActionOpenUrl, urlTextUuid)}
                     {BuildIfEnd(grpUrl)}
 
-                    {BuildIfEqualsStart(catUuid, "text", grpText)}
+                    {BuildIfEqualsStart(actionUuid, "text", grpText)}
+                    {BuildGetDictValueAction(getUuid, "text", clipTextUuid)}
+                    {BuildActionWithOutputInput(ActionSetClipboard, clipTextUuid)}
+                    {BuildIfEnd(grpText)}
+
+                    {BuildGetDictValueAction(getUuid, "urls", urlsUuid)}
                     <dict>
                         <key>WFWorkflowActionIdentifier</key>
-                        <string>{ActionSetClipboard}</string>
+                        <string>{ActionRepeatEach}</string>
                         <key>WFWorkflowActionParameters</key>
                         <dict>
+                            <key>GroupingIdentifier</key>
+                            <string>{loopGroupId}</string>
+                            <key>WFControlFlowMode</key>
+                            <integer>0</integer>
                             <key>WFInput</key>
                             <dict>
                                 <key>Value</key>
                                 <dict>
                                     <key>OutputUUID</key>
-                                    <string>{textUuid}</string>
+                                    <string>{urlsUuid}</string>
                                     <key>Type</key>
                                     <string>ActionOutput</string>
                                 </dict>
@@ -341,23 +324,56 @@ public static class ShortcutBuilderService
                             </dict>
                         </dict>
                     </dict>
-                    {BuildSimpleNotification("已复制到剪贴板", summaryUuid)}
-                    {BuildIfEnd(grpText)}
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionGetContentsOfUrl}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>UUID</key>
+                            <string>{dlUuid}</string>
+                            <key>WFHTTPMethod</key>
+                            <string>GET</string>
+                            <key>WFURL</key>
+                            <dict>
+                                <key>Value</key>
+                                <dict>
+                                    <key>attachmentsByRange</key>
+                                    <dict>
+                                        <key>{RangeZeroOneKey}</key>
+                                        <dict>
+                                            <key>Type</key>
+                                            <string>Variable</string>
+                                            <key>VariableName</key>
+                                            <string>Repeat Item</string>
+                                        </dict>
+                                    </dict>
+                                    <key>string</key>
+                                    <string>&#xFFFC;</string>
+                                </dict>
+                                <key>WFSerializationType</key>
+                                <string>WFTextTokenString</string>
+                            </dict>
+                        </dict>
+                    </dict>
+                    {BuildIfEqualsStart(actionUuid, "media", grpMedia)}
+                    {BuildActionWithOutputInput(ActionSaveToPhotoAlbum, dlUuid)}
+                    {BuildIfElse(grpMedia)}
+                    {BuildActionWithOutputInput(ActionSaveFile, dlUuid)}
+                    {BuildIfEnd(grpMedia)}
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionRepeatEach}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>GroupingIdentifier</key>
+                            <string>{loopGroupId}</string>
+                            <key>WFControlFlowMode</key>
+                            <integer>2</integer>
+                        </dict>
+                    </dict>
 
-                    {BuildIfEqualsStart(catUuid, "image", grpImage)}
-                    {BuildRepeatDownloadAndSave(filesUuid, loopImgGroup, dlImgUuid, ActionSaveToPhotoAlbum)}
-                    {BuildSimpleNotification("图片已存入系统相册", summaryUuid)}
-                    {BuildIfEnd(grpImage)}
-
-                    {BuildIfEqualsStart(catUuid, "video", grpVideo)}
-                    {BuildRepeatDownloadAndSave(filesUuid, loopVidGroup, dlVidUuid, ActionSaveToPhotoAlbum)}
-                    {BuildSimpleNotification("视频已存入系统相册", summaryUuid)}
-                    {BuildIfEnd(grpVideo)}
-
-                    {BuildIfEqualsStart(catUuid, "file", grpFile)}
-                    {BuildRepeatDownloadAndSave(filesUuid, loopFileGroup, dlFileUuid, ActionSaveFile)}
-                    {BuildSimpleNotification("文件已保存到 iPhone", summaryUuid)}
-                    {BuildIfEnd(grpFile)}
+                    {BuildGetDictValueAction(getUuid, "summary", summaryUuid)}
+                    {BuildSimpleNotification("WinDrop 接收完成", summaryUuid)}
                 </array>
             </dict>
             </plist>
@@ -478,6 +494,20 @@ public static class ShortcutBuilderService
         </dict>
         """;
 
+    private static string BuildIfElse(string groupingId) => $"""
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>{ActionConditional}</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>GroupingIdentifier</key>
+                <string>{groupingId}</string>
+                <key>WFControlFlowMode</key>
+                <integer>1</integer>
+            </dict>
+        </dict>
+        """;
+
     private static string BuildIfEnd(string groupingId) => $"""
         <dict>
             <key>WFWorkflowActionIdentifier</key>
@@ -492,119 +522,27 @@ public static class ShortcutBuilderService
         </dict>
         """;
 
-    private static string BuildRepeatDownloadAndSave(string filesOutputUuid, string repeatGroupId, string downloadOutputUuid, string saveActionId)
-    {
-        string itemUrlUuid = Guid.NewGuid().ToString().ToUpperInvariant();
-        return $"""
+    private static string BuildActionWithOutputInput(string actionId, string inputOutputUuid) => $"""
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>{actionId}</string>
+            <key>WFWorkflowActionParameters</key>
             <dict>
-                <key>WFWorkflowActionIdentifier</key>
-                <string>{ActionRepeatEach}</string>
-                <key>WFWorkflowActionParameters</key>
+                <key>WFInput</key>
                 <dict>
-                    <key>GroupingIdentifier</key>
-                    <string>{repeatGroupId}</string>
-                    <key>WFControlFlowMode</key>
-                    <integer>0</integer>
-                    <key>WFInput</key>
+                    <key>Value</key>
                     <dict>
-                        <key>Value</key>
-                        <dict>
-                            <key>OutputUUID</key>
-                            <string>{filesOutputUuid}</string>
-                            <key>Type</key>
-                            <string>ActionOutput</string>
-                        </dict>
-                        <key>WFSerializationType</key>
-                        <string>WFTextTokenAttachment</string>
+                        <key>OutputUUID</key>
+                        <string>{inputOutputUuid}</string>
+                        <key>Type</key>
+                        <string>ActionOutput</string>
                     </dict>
+                    <key>WFSerializationType</key>
+                    <string>WFTextTokenAttachment</string>
                 </dict>
             </dict>
-            <dict>
-                <key>WFWorkflowActionIdentifier</key>
-                <string>{ActionGetDictionaryValue}</string>
-                <key>WFWorkflowActionParameters</key>
-                <dict>
-                    <key>UUID</key>
-                    <string>{itemUrlUuid}</string>
-                    <key>WFDictionaryKey</key>
-                    <string>url</string>
-                    <key>WFInput</key>
-                    <dict>
-                        <key>Value</key>
-                        <dict>
-                            <key>Type</key>
-                            <string>Variable</string>
-                            <key>VariableName</key>
-                            <string>Repeat Item</string>
-                        </dict>
-                        <key>WFSerializationType</key>
-                        <string>WFTextTokenAttachment</string>
-                    </dict>
-                </dict>
-            </dict>
-            <dict>
-                <key>WFWorkflowActionIdentifier</key>
-                <string>{ActionGetContentsOfUrl}</string>
-                <key>WFWorkflowActionParameters</key>
-                <dict>
-                    <key>UUID</key>
-                    <string>{downloadOutputUuid}</string>
-                    <key>WFHTTPMethod</key>
-                    <string>GET</string>
-                    <key>WFURL</key>
-                    <dict>
-                        <key>Value</key>
-                        <dict>
-                            <key>attachmentsByRange</key>
-                            <dict>
-                                <key>{RangeZeroOneKey}</key>
-                                <dict>
-                                    <key>OutputUUID</key>
-                                    <string>{itemUrlUuid}</string>
-                                    <key>Type</key>
-                                    <string>ActionOutput</string>
-                                </dict>
-                            </dict>
-                            <key>string</key>
-                            <string>&#xFFFC;</string>
-                        </dict>
-                        <key>WFSerializationType</key>
-                        <string>WFTextTokenString</string>
-                    </dict>
-                </dict>
-            </dict>
-            <dict>
-                <key>WFWorkflowActionIdentifier</key>
-                <string>{saveActionId}</string>
-                <key>WFWorkflowActionParameters</key>
-                <dict>
-                    <key>WFInput</key>
-                    <dict>
-                        <key>Value</key>
-                        <dict>
-                            <key>OutputUUID</key>
-                            <string>{downloadOutputUuid}</string>
-                            <key>Type</key>
-                            <string>ActionOutput</string>
-                        </dict>
-                        <key>WFSerializationType</key>
-                        <string>WFTextTokenAttachment</string>
-                    </dict>
-                </dict>
-            </dict>
-            <dict>
-                <key>WFWorkflowActionIdentifier</key>
-                <string>{ActionRepeatEach}</string>
-                <key>WFWorkflowActionParameters</key>
-                <dict>
-                    <key>GroupingIdentifier</key>
-                    <string>{repeatGroupId}</string>
-                    <key>WFControlFlowMode</key>
-                    <integer>2</integer>
-                </dict>
-            </dict>
-            """;
-    }
+        </dict>
+        """;
 
     private static string BuildSimpleNotification(string title, string bodyOutputUuid) => $"""
         <dict>

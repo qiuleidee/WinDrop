@@ -667,7 +667,13 @@ public sealed class WinDropServer : IAsyncDisposable
                 {
                     return directMode
                         ? Results.NotFound("电脑待分享文件不存在")
-                        : Results.Json(new V2ReceiveResponse { Success = false, Category = V2ContentCategory.Empty, Summary = "电脑剪贴板为空" });
+                        : Results.Json(new V2ReceiveResponse
+                        {
+                            Success = false,
+                            Action = V2ReceiveAction.Empty,
+                            Category = V2ContentCategory.Empty,
+                            Summary = "电脑剪贴板为空"
+                        });
                 }
 
                 if (directMode)
@@ -683,6 +689,9 @@ public sealed class WinDropServer : IAsyncDisposable
                         ? V2ContentCategory.Video
                         : V2ContentCategory.File;
 
+                bool allMedia = items.All(i => i.Category is V2ContentCategory.Image or V2ContentCategory.Video);
+                string action = allMedia ? V2ReceiveAction.Media : V2ReceiveAction.File;
+
                 string summary = items.Count == 1
                     ? items[0].Name
                     : $"{items[0].Name} 等共 {items.Count} 个文件";
@@ -691,8 +700,10 @@ public sealed class WinDropServer : IAsyncDisposable
                 return Results.Json(new V2ReceiveResponse
                 {
                     Success = true,
+                    Action = action,
                     Category = overallCategory,
                     Summary = summary,
+                    Urls = items.Select(i => i.Url).ToList(),
                     Files = items
                 });
             }
@@ -712,19 +723,22 @@ public sealed class WinDropServer : IAsyncDisposable
                     return StreamAuthorizedFile(tempPngPath);
                 }
 
+                string ticketUrl = $"{baseHost}/v2/dl/{ticket}";
                 _state.Notify("🏞️ 已向 iPhone 下发剪贴板截图", fileName);
                 return Results.Json(new V2ReceiveResponse
                 {
                     Success = true,
+                    Action = V2ReceiveAction.Media,
                     Category = V2ContentCategory.Image,
                     Summary = fileName,
+                    Urls = new List<string> { ticketUrl },
                     Files = new List<V2ReceiveFileItem>
                     {
                         new()
                         {
                             Name = fileName,
                             Category = V2ContentCategory.Image,
-                            Url = $"{baseHost}/v2/dl/{ticket}",
+                            Url = ticketUrl,
                             SizeBytes = new FileInfo(tempPngPath).Length
                         }
                     }
@@ -738,6 +752,7 @@ public sealed class WinDropServer : IAsyncDisposable
                              (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) ||
                               uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase));
                 string category = isUrl ? V2ContentCategory.Url : V2ContentCategory.Text;
+                string action = isUrl ? V2ReceiveAction.Url : V2ReceiveAction.Text;
 
                 _state.Notify(isUrl ? "🔗 已向 iPhone 下发网址" : "📤 已向 iPhone 下发剪贴板文本", TruncatePreview(raw));
 
@@ -750,6 +765,7 @@ public sealed class WinDropServer : IAsyncDisposable
                 return Results.Json(new V2ReceiveResponse
                 {
                     Success = true,
+                    Action = action,
                     Category = category,
                     Summary = TruncatePreview(raw),
                     Text = isUrl ? raw.Trim() : raw
@@ -762,6 +778,7 @@ public sealed class WinDropServer : IAsyncDisposable
                 return Results.Json(new V2ReceiveResponse
                 {
                     Success = false,
+                    Action = V2ReceiveAction.Empty,
                     Category = V2ContentCategory.Empty,
                     Summary = "电脑剪贴板为空"
                 });

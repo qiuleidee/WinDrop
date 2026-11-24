@@ -128,17 +128,21 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
         await File.WriteAllBytesAsync(vid1, vidBytes);
         await File.WriteAllBytesAsync(pdf1, new byte[] { 7, 8, 9 });
 
-        // 1. 纯图片列表 -> category = "image"
+        // 1. 纯图片列表 -> category = "image", action = "media"
         await _clipboard.SetFilesAsync(new[] { img1, img2 });
         var rImg = await GetV2ReceiveJsonAsync();
         Assert.Equal(V2ContentCategory.Image, rImg.Category);
+        Assert.Equal(V2ReceiveAction.Media, rImg.Action);
         Assert.Equal(2, rImg.Files.Count);
+        Assert.Equal(2, rImg.Urls.Count);
 
-        // 2. 纯视频列表 -> category = "video" 且支持 ?direct=1 与 Range 206 断点续传
+        // 2. 纯视频列表 -> category = "video", action = "media"，支持 ?direct=1 与 Range 206 断点续传
         await _clipboard.SetFilesAsync(new[] { vid1 });
         var rVid = await GetV2ReceiveJsonAsync();
         Assert.Equal(V2ContentCategory.Video, rVid.Category);
-        string ticketUrl = rVid.Files[0].Url;
+        Assert.Equal(V2ReceiveAction.Media, rVid.Action);
+        string ticketUrl = rVid.Urls[0];
+        Assert.Equal(rVid.Files[0].Url, ticketUrl);
 
         using (var rangeReq = new HttpRequestMessage(HttpMethod.Get, new Uri(ticketUrl).PathAndQuery))
         {
@@ -158,36 +162,51 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
             Assert.Equal(vidBytes, await dirRes.Content.ReadAsByteArrayAsync());
         }
 
-        // 3. 混合文件（图片 + PDF）-> 总体 category = "file"，但各子项保留精确 category
+        // 2.5 图片+视频混合 -> action = "media"，可一次性全存入相册
+        await _clipboard.SetFilesAsync(new[] { img1, vid1 });
+        var rMixedMedia = await GetV2ReceiveJsonAsync();
+        Assert.Equal(V2ContentCategory.File, rMixedMedia.Category);
+        Assert.Equal(V2ReceiveAction.Media, rMixedMedia.Action);
+        Assert.Equal(2, rMixedMedia.Urls.Count);
+
+        // 3. 混合文件（图片 + PDF）-> action = "file", category = "file"，各子项保留精确 category
         await _clipboard.SetFilesAsync(new[] { img1, pdf1 });
         var rMix = await GetV2ReceiveJsonAsync();
         Assert.Equal(V2ContentCategory.File, rMix.Category);
+        Assert.Equal(V2ReceiveAction.File, rMix.Action);
         Assert.Equal(V2ContentCategory.Image, rMix.Files[0].Category);
         Assert.Equal(V2ContentCategory.File, rMix.Files[1].Category);
+        Assert.Equal(2, rMix.Urls.Count);
 
-        // 4. 剪贴板 PNG 截图 -> 自动落盘并下发短 Ticket 下载链接
+        // 4. 剪贴板 PNG 截图 -> action = "media"，自动落盘并下发短 Ticket 下载链接
         byte[] shotPng = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 99, 88, 77 };
         await _clipboard.SetImagePngAsync(shotPng);
         var rShot = await GetV2ReceiveJsonAsync();
         Assert.Equal(V2ContentCategory.Image, rShot.Category);
+        Assert.Equal(V2ReceiveAction.Media, rShot.Action);
         Assert.Single(rShot.Files);
-        byte[] downloadedPng = await _http.GetByteArrayAsync(new Uri(rShot.Files[0].Url).PathAndQuery);
+        Assert.Single(rShot.Urls);
+        byte[] downloadedPng = await _http.GetByteArrayAsync(new Uri(rShot.Urls[0]).PathAndQuery);
         Assert.Equal(shotPng, downloadedPng);
 
         // 5. 伪造短 Ticket 必须返回 404
         var badTicketRes = await _http.GetAsync("/v2/dl/invalid_ticket_000");
         Assert.Equal(HttpStatusCode.NotFound, badTicketRes.StatusCode);
 
-        // 6. URL 与普通文本分类
+        // 6. URL 与普通文本分类 -> urls 必须为空数组，防止单循环执行
         await _clipboard.SetTextAsync("https://github.com");
         var rUrl = await GetV2ReceiveJsonAsync();
         Assert.Equal(V2ContentCategory.Url, rUrl.Category);
+        Assert.Equal(V2ReceiveAction.Url, rUrl.Action);
         Assert.Equal("https://github.com", rUrl.Text);
+        Assert.Empty(rUrl.Urls);
 
         await _clipboard.SetTextAsync("普通剪贴板文字");
         var rTxt = await GetV2ReceiveJsonAsync();
         Assert.Equal(V2ContentCategory.Text, rTxt.Category);
+        Assert.Equal(V2ReceiveAction.Text, rTxt.Action);
         Assert.Equal("普通剪贴板文字", rTxt.Text);
+        Assert.Empty(rTxt.Urls);
     }
 
     [Fact]
@@ -212,6 +231,9 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
         Assert.Contains("is.workflow.actions.notification", sendXml);
 
         Assert.Contains("http://DESKTOP-121125.local:58446/v2/receive", recvXml);
+        Assert.Contains("<string>action</string>", recvXml);
+        Assert.Contains("<string>urls</string>", recvXml);
+        Assert.Contains("<string>summary</string>", recvXml);
         Assert.Contains("is.workflow.actions.conditional", recvXml);
         Assert.Contains("is.workflow.actions.openurl", recvXml);
         Assert.Contains("is.workflow.actions.setclipboard", recvXml);
