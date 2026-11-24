@@ -817,7 +817,6 @@ public sealed class WinDropServer : IAsyncDisposable
         string ip = System.Net.WebUtility.HtmlEncode(LocalIp.ToString());
         int port = ListeningPort;
         string key = System.Net.WebUtility.HtmlEncode(_state.Config.Key);
-        string shortcutUrl = QrAndPathHelper.OfficialSignedShortcutUrl;
 
         string activeBase = ctx.Request.Host.HasValue ? $"http://{ctx.Request.Host.Value}" : $"http://{PrimaryMdnsDomain}:{port}";
         string v2SendUrl = System.Net.WebUtility.HtmlEncode($"{activeBase}/v2/send");
@@ -864,10 +863,9 @@ public sealed class WinDropServer : IAsyncDisposable
             </head>
             <body>
               <div class="card">
-                <h1>📲 WinDrop 成品快捷指令安装</h1>
-                <p>Apple 官方 iCloud 已签名快捷指令，无需手动编写任何步骤。安装后自动支持「共享表单一键发到电脑」与「一键接收电脑复制/右键分享的文件」。</p>
+                <h1>📲 WinDrop 拆分版快捷指令安装与配对</h1>
+                <p>请使用仓库 <code>shortcuts/</code> 目录下的已签名拆分版快捷指令（<b>WinDrop发送_已签名.shortcut</b> 与 <b>WinDrop接收_已签名.shortcut</b>）导入 iPhone，按下方参数填写对应地址与 <code>Authorization</code> 请求头即可使用。</p>
                 {{splitInstallHtml}}
-                <a class="btn" href="{{shortcutUrl}}">第 1 步：点击获取并添加官方快捷指令（一体版）</a>
               </div>
 
               <div class="card">

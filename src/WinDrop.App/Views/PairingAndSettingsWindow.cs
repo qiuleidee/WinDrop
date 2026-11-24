@@ -11,7 +11,7 @@ namespace WinDrop.App.Views;
 
 /// <summary>
 /// 极简原生 WPF「快捷指令安装与连接设置」窗口
-/// 无 WebView2 依赖，秒开低内存，扫码直接安装成品签名快捷指令并展示 host / port / key
+/// 无 WebView2 依赖，秒开低内存，扫码打开手机配置引导页并展示 host / port / key
 /// </summary>
 public sealed class PairingAndSettingsWindow : Window
 {
@@ -20,7 +20,6 @@ public sealed class PairingAndSettingsWindow : Window
 
     private readonly System.Windows.Controls.Image _qrImage;
     private readonly TextBlock _qrCaption;
-    private bool _showingDirectIcloudQr;
 
     private readonly System.Windows.Controls.TextBox _portBox;
     private readonly System.Windows.Controls.TextBox _keyBox;
@@ -102,15 +101,6 @@ public sealed class PairingAndSettingsWindow : Window
             Margin = new Thickness(0, 0, 0, 12)
         };
         leftStack.Children.Add(_qrCaption);
-
-        var switchQrBtn = CreateButton("切换：扫 Apple iCloud 直装码", System.Windows.Media.Color.FromRgb(51, 65, 85));
-        switchQrBtn.Click += (_, _) =>
-        {
-            _showingDirectIcloudQr = !_showingDirectIcloudQr;
-            switchQrBtn.Content = _showingDirectIcloudQr ? "切换：扫本机引导页二维码" : "切换：扫 Apple iCloud 直装码";
-            RefreshQrDisplay();
-        };
-        leftStack.Children.Add(switchQrBtn);
 
         leftCard.Child = leftStack;
         Grid.SetColumn(leftCard, 0);
@@ -328,13 +318,10 @@ public sealed class PairingAndSettingsWindow : Window
 
     private void RefreshQrDisplay()
     {
-        string targetUrl = _showingDirectIcloudQr
-            ? QrAndPathHelper.OfficialSignedShortcutUrl
-            : $"http://{_server.LocalIp}:{_server.ListeningPort}/setup";
+        string targetUrl = $"http://{_server.LocalIp}:{_server.ListeningPort}/setup";
 
-        _qrCaption.Text = _showingDirectIcloudQr
-            ? "当前：Apple 官方签名快捷指令直装码\n用 iPhone 相机扫码直接添加到「快捷指令」"
-            : $"当前：扫码引导页（含一体版与零菜单拆分版）\nhttp://{_server.LocalIp}:{_server.ListeningPort}/setup";
+        _qrCaption.Text =
+            $"用 iPhone 相机扫码打开本机配置引导页\nhttp://{_server.LocalIp}:{_server.ListeningPort}/setup";
 
         byte[] png = QrAndPathHelper.GenerateQrPngBytes(targetUrl, 10);
         var bmp = new BitmapImage();

@@ -10,8 +10,7 @@ publish/
 TestResults/
 node_modules/
 
-# 个人已签名或待签名快捷指令产物（避免把本机计算机名与密钥推送到公开仓库）
+# 个人待签名或本地临时签名快捷指令产物（正式入库的 *_已签名.shortcut 除外）
 shortcuts/待签名/
 shortcuts/signed/
 shortcuts/*Signed*.shortcut
-shortcuts/*已签名*.shortcut

@@ -135,11 +135,6 @@ public sealed class NullPushNotificationService : IPushNotificationService
 /// </summary>
 public static class QrAndPathHelper
 {
-    /// <summary>
-    /// 官方已通过 Apple iCloud 公证签名的成品快捷指令地址（v1.5.3，支持共享表单自动发文件 + 双向剪贴板/文件拉取）
-    /// </summary>
-    public const string OfficialSignedShortcutUrl = "https://www.icloud.com/shortcuts/c499c9a3d9b04e189cce38d9560b3e2e";
-
     public static byte[] GenerateQrPngBytes(string content, int pixelsPerModule = 12)
     {
         using var generator = new QRCodeGenerator();

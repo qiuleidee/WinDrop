@@ -74,15 +74,7 @@ public sealed class WinDropApplication : System.Windows.Application
         int port = useTemplate ? 58446 : state.Config.Port;
         string key = useTemplate ? "YOUR_KEY" : state.Config.Key;
 
-        // 1. 导出 Apple 官方 iCloud 已签名快捷指令扫码安装 PNG
-        byte[] qrPng = QrAndPathHelper.GenerateQrPngBytes(QrAndPathHelper.OfficialSignedShortcutUrl, 14);
-        File.WriteAllBytes(Path.Combine(outputDir, "iPhone扫码安装官方快捷指令.png"), qrPng);
-
-        // 2. 导出 Windows Internet 快捷方式（双击直接打开 iCloud 快捷指令页）
-        string urlShortcutContent = $"[InternetShortcut]\r\nURL={QrAndPathHelper.OfficialSignedShortcutUrl}\r\n";
-        File.WriteAllText(Path.Combine(outputDir, "点击获取iOS成品快捷指令(iCloud官方签名).url"), urlShortcutContent);
-
-        // 3. 同时导出拆分版 v2 完整动作流模板与 macOS/CI 官方签名脚本
+        // 导出拆分版 v2 完整动作流模板与 macOS 本地签名脚本
         File.WriteAllBytes(
             Path.Combine(outputDir, "发送到电脑.shortcut"),
             ShortcutBuilderService.BuildSendToWindowsShortcutPlist(host, port, key));
