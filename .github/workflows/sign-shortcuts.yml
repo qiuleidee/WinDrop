@@ -13,22 +13,200 @@ permissions:
   contents: write
 
 jobs:
-  sign-shortcuts:
-    runs-on: macos-latest
+  sign-macos-arm:
+    runs-on: macos-15
     steps:
       - name: 检出仓库代码
         uses: actions/checkout@v4
 
-      - name: 校验并转换 Plist 格式后调用 Apple 官方 shortcuts 签名
+      - name: 运行空白快捷指令探针并执行 Apple 官方签名
         run: |
-          cd shortcuts
-          plutil -lint "发送到电脑.shortcut"
-          plutil -lint "从电脑接收.shortcut"
-          plutil -convert binary1 "发送到电脑.shortcut" -o "send_bin.shortcut"
-          plutil -convert binary1 "从电脑接收.shortcut" -o "recv_bin.shortcut"
-          shortcuts sign --mode anyone --input "send_bin.shortcut" --output "WinDrop-Send.shortcut"
-          shortcuts sign --mode anyone --input "recv_bin.shortcut" --output "WinDrop-Receive.shortcut"
-          ls -lh WinDrop-Send.shortcut WinDrop-Receive.shortcut
+          set -euo pipefail
+          sw_vers
+          uname -m
+          cd "$GITHUB_WORKSPACE/shortcuts"
+
+          # 生成最小标准空白快捷指令作为探针，区分“工作流环境限制”还是“动作流 Plist 结构问题”
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          probe = {
+              "WFWorkflowClientVersion": "2302.0.4",
+              "WFWorkflowMinimumClientVersion": 900,
+              "WFWorkflowMinimumClientVersionString": "900",
+              "WFWorkflowHasOutputFallback": False,
+              "WFWorkflowHasShortcutInputVariables": False,
+              "WFWorkflowImportQuestions": [],
+              "WFWorkflowIcon": {
+                  "WFWorkflowIconStartColor": 463140863,
+                  "WFWorkflowIconGlyphNumber": 59784,
+              },
+              "WFWorkflowTypes": [],
+              "WFWorkflowInputContentItemClasses": [],
+              "WFWorkflowOutputContentItemClasses": [],
+              "WFWorkflowActions": [],
+          }
+          Path("probe_empty.plist").write_bytes(plistlib.dumps(probe, fmt=plistlib.FMT_BINARY))
+          PY
+
+          shortcuts sign --mode anyone --input "$PWD/probe_empty.plist" --output "$PWD/probe_signed.shortcut"
+          echo "空白探针签名成功，开始校验并签署 WinDrop 快捷指令..."
+
+          plutil -lint "$PWD/发送到电脑.shortcut"
+          plutil -lint "$PWD/从电脑接收.shortcut"
+          plutil -convert binary1 "$PWD/发送到电脑.shortcut" -o "$PWD/send_bin.shortcut"
+          plutil -convert binary1 "$PWD/从电脑接收.shortcut" -o "$PWD/recv_bin.shortcut"
+
+          shortcuts sign --mode anyone --input "$PWD/send_bin.shortcut" --output "$PWD/WinDrop-Send.shortcut"
+          shortcuts sign --mode anyone --input "$PWD/recv_bin.shortcut" --output "$PWD/WinDrop-Receive.shortcut"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for name in ("WinDrop-Send.shortcut", "WinDrop-Receive.shortcut"):
+              data = Path(name).read_bytes()
+              assert data[:4] == b"AEA1", f"{name} 未包含 Apple AEA1 签名文件头，实际为: {data[:8]!r}"
+              print(f"{name}: {len(data)} bytes, header={data[:4]!r}")
+          PY
+
+      - name: 收集系统崩溃诊断日志（仅失败时输出）
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          diag_dir = Path.home() / "Library" / "Logs" / "DiagnosticReports"
+          files = sorted(diag_dir.glob("*.ips"), key=lambda p: p.stat().st_mtime, reverse=True)
+          if not files:
+              print("未在 ~/Library/Logs/DiagnosticReports/ 找到 .ips 崩溃报告")
+          for f in files[:3]:
+              print(f"=== 崩溃报告: {f.name} ===")
+              lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+              # .ips 文件首行为汇总 JSON，第二行起为完整 JSON
+              body = "\n".join(lines[1:]) if len(lines) > 1 and lines[0].startswith("{") else "\n".join(lines)
+              try:
+                  data = json.loads(body)
+                  for key in ("procName", "procPath", "exception", "termination", "asi"):
+                      if key in data:
+                          print(f"{key}: {json.dumps(data[key], ensure_ascii=False)}")
+                  if "lastExceptionBacktrace" in data:
+                      print("lastExceptionBacktrace:", json.dumps(data["lastExceptionBacktrace"][:12], ensure_ascii=False))
+              except Exception as ex:
+                  print("解析 JSON 失败:", ex)
+                  print("\n".join(lines[:40]))
+          PY
+
+      - name: 上传已签名快捷指令构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDrop-Signed-Shortcuts
+          path: |
+            shortcuts/WinDrop-Send.shortcut
+            shortcuts/WinDrop-Receive.shortcut
+
+      - name: 发布免登录直链 Release (shortcuts-latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view shortcuts-latest >/dev/null 2>&1; then
+            gh release upload shortcuts-latest \
+              "shortcuts/WinDrop-Send.shortcut" \
+              "shortcuts/WinDrop-Receive.shortcut" \
+              --clobber
+          else
+            gh release create shortcuts-latest \
+              "shortcuts/WinDrop-Send.shortcut" \
+              "shortcuts/WinDrop-Receive.shortcut" \
+              --title "WinDrop 已签名拆分版 iOS 快捷指令" \
+              --notes "由 macOS Apple 官方 shortcuts sign --mode anyone 自动签名生成，iPhone Safari 点击附件即可直接添加使用。"
+          fi
+
+  sign-macos-intel:
+    needs: sign-macos-arm
+    if: failure()
+    runs-on: macos-15-intel
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4
+
+      - name: Intel 环境回退签名与空白探针检查
+        run: |
+          set -euo pipefail
+          sw_vers
+          uname -m
+          cd "$GITHUB_WORKSPACE/shortcuts"
+
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          probe = {
+              "WFWorkflowClientVersion": "2302.0.4",
+              "WFWorkflowMinimumClientVersion": 900,
+              "WFWorkflowMinimumClientVersionString": "900",
+              "WFWorkflowHasOutputFallback": False,
+              "WFWorkflowHasShortcutInputVariables": False,
+              "WFWorkflowImportQuestions": [],
+              "WFWorkflowIcon": {
+                  "WFWorkflowIconStartColor": 463140863,
+                  "WFWorkflowIconGlyphNumber": 59784,
+              },
+              "WFWorkflowTypes": [],
+              "WFWorkflowInputContentItemClasses": [],
+              "WFWorkflowOutputContentItemClasses": [],
+              "WFWorkflowActions": [],
+          }
+          Path("probe_empty.plist").write_bytes(plistlib.dumps(probe, fmt=plistlib.FMT_BINARY))
+          PY
+
+          shortcuts sign --mode anyone --input "$PWD/probe_empty.plist" --output "$PWD/probe_signed.shortcut"
+          echo "Intel 空白探针签名成功，开始校验并签署 WinDrop 快捷指令..."
+
+          plutil -lint "$PWD/发送到电脑.shortcut"
+          plutil -lint "$PWD/从电脑接收.shortcut"
+          plutil -convert binary1 "$PWD/发送到电脑.shortcut" -o "$PWD/send_bin.shortcut"
+          plutil -convert binary1 "$PWD/从电脑接收.shortcut" -o "$PWD/recv_bin.shortcut"
+
+          shortcuts sign --mode anyone --input "$PWD/send_bin.shortcut" --output "$PWD/WinDrop-Send.shortcut"
+          shortcuts sign --mode anyone --input "$PWD/recv_bin.shortcut" --output "$PWD/WinDrop-Receive.shortcut"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for name in ("WinDrop-Send.shortcut", "WinDrop-Receive.shortcut"):
+              data = Path(name).read_bytes()
+              assert data[:4] == b"AEA1", f"{name} 未包含 Apple AEA1 签名文件头，实际为: {data[:8]!r}"
+              print(f"{name}: {len(data)} bytes, header={data[:4]!r}")
+          PY
+
+      - name: 收集系统崩溃诊断日志（仅失败时输出）
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          diag_dir = Path.home() / "Library" / "Logs" / "DiagnosticReports"
+          files = sorted(diag_dir.glob("*.ips"), key=lambda p: p.stat().st_mtime, reverse=True)
+          if not files:
+              print("未在 ~/Library/Logs/DiagnosticReports/ 找到 .ips 崩溃报告")
+          for f in files[:3]:
+              print(f"=== 崩溃报告: {f.name} ===")
+              lines = f.read_text(encoding="utf-8", errors="replace").splitlines()
+              body = "\n".join(lines[1:]) if len(lines) > 1 and lines[0].startswith("{") else "\n".join(lines)
+              try:
+                  data = json.loads(body)
+                  for key in ("procName", "procPath", "exception", "termination", "asi"):
+                      if key in data:
+                          print(f"{key}: {json.dumps(data[key], ensure_ascii=False)}")
+                  if "lastExceptionBacktrace" in data:
+                      print("lastExceptionBacktrace:", json.dumps(data["lastExceptionBacktrace"][:12], ensure_ascii=False))
+              except Exception as ex:
+                  print("解析 JSON 失败:", ex)
+                  print("\n".join(lines[:40]))
+          PY
 
       - name: 上传已签名快捷指令构建产物
         uses: actions/upload-artifact@v4

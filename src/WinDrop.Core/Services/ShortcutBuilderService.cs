@@ -40,10 +40,14 @@ public static class ShortcutBuilderService
                 <string>2302.0.4</string>
                 <key>WFWorkflowMinimumClientVersion</key>
                 <integer>900</integer>
+                <key>WFWorkflowMinimumClientVersionString</key>
+                <string>900</string>
                 <key>WFWorkflowHasOutputFallback</key>
                 <false/>
                 <key>WFWorkflowHasShortcutInputVariables</key>
                 <true/>
+                <key>WFWorkflowImportQuestions</key>
+                <array/>
                 <key>WFWorkflowIcon</key>
                 <dict>
                     <key>WFWorkflowIconStartColor</key>
@@ -63,6 +67,8 @@ public static class ShortcutBuilderService
                     <string>WFURLContentItem</string>
                     <string>WFStringContentItem</string>
                 </array>
+                <key>WFWorkflowOutputContentItemClasses</key>
+                <array/>
                 <key>WFWorkflowActions</key>
                 <array>
                     <dict>
@@ -122,7 +128,12 @@ public static class ShortcutBuilderService
                                             <key>WFKey</key>
                                             <dict>
                                                 <key>Value</key>
-                                                <dict><key>string</key><string>file</string></dict>
+                                                <dict>
+                                                    <key>attachmentsByRange</key>
+                                                    <dict/>
+                                                    <key>string</key>
+                                                    <string>file</string>
+                                                </dict>
                                                 <key>WFSerializationType</key>
                                                 <string>WFTextTokenString</string>
                                             </dict>
@@ -233,6 +244,14 @@ public static class ShortcutBuilderService
                 <string>2302.0.4</string>
                 <key>WFWorkflowMinimumClientVersion</key>
                 <integer>900</integer>
+                <key>WFWorkflowMinimumClientVersionString</key>
+                <string>900</string>
+                <key>WFWorkflowHasOutputFallback</key>
+                <false/>
+                <key>WFWorkflowHasShortcutInputVariables</key>
+                <false/>
+                <key>WFWorkflowImportQuestions</key>
+                <array/>
                 <key>WFWorkflowIcon</key>
                 <dict>
                     <key>WFWorkflowIconStartColor</key>
@@ -240,6 +259,12 @@ public static class ShortcutBuilderService
                     <key>WFWorkflowIconGlyphNumber</key>
                     <integer>59782</integer>
                 </dict>
+                <key>WFWorkflowTypes</key>
+                <array/>
+                <key>WFWorkflowInputContentItemClasses</key>
+                <array/>
+                <key>WFWorkflowOutputContentItemClasses</key>
+                <array/>
                 <key>WFWorkflowActions</key>
                 <array>
                     <dict>
@@ -350,9 +375,12 @@ public static class ShortcutBuilderService
             #!/usr/bin/env bash
             set -euo pipefail
 
-            echo "正在调用 macOS 系统原生 shortcuts 工具进行 Apple 签名..."
-            shortcuts sign --mode anyone --input "发送到电脑.shortcut" --output "发送到电脑_已签名.shortcut"
-            shortcuts sign --mode anyone --input "从电脑接收.shortcut" --output "从电脑接收_已签名.shortcut"
+            echo "正在转换二进制 Plist 并调用 macOS 系统原生 shortcuts 工具进行 Apple 签名..."
+            plutil -convert binary1 "$PWD/发送到电脑.shortcut" -o "$PWD/send_bin.shortcut"
+            plutil -convert binary1 "$PWD/从电脑接收.shortcut" -o "$PWD/recv_bin.shortcut"
+            shortcuts sign --mode anyone --input "$PWD/send_bin.shortcut" --output "$PWD/发送到电脑_已签名.shortcut"
+            shortcuts sign --mode anyone --input "$PWD/recv_bin.shortcut" --output "$PWD/从电脑接收_已签名.shortcut"
+            rm -f "$PWD/send_bin.shortcut" "$PWD/recv_bin.shortcut"
 
             echo "签名完成！请将 *_已签名.shortcut 通过隔空投送或 iCloud 链接直接导入任意 iPhone。"
             """;
@@ -365,14 +393,24 @@ public static class ShortcutBuilderService
             <key>WFKey</key>
             <dict>
                 <key>Value</key>
-                <dict><key>string</key><string>{keyName}</string></dict>
+                <dict>
+                    <key>attachmentsByRange</key>
+                    <dict/>
+                    <key>string</key>
+                    <string>{keyName}</string>
+                </dict>
                 <key>WFSerializationType</key>
                 <string>WFTextTokenString</string>
             </dict>
             <key>WFValue</key>
             <dict>
                 <key>Value</key>
-                <dict><key>string</key><string>{valueText}</string></dict>
+                <dict>
+                    <key>attachmentsByRange</key>
+                    <dict/>
+                    <key>string</key>
+                    <string>{valueText}</string>
+                </dict>
                 <key>WFSerializationType</key>
                 <string>WFTextTokenString</string>
             </dict>
