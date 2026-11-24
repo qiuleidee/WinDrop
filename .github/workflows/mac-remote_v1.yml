@@ -1,0 +1,15 @@
+name: mac-remote
+# 用法：把本文件放到仓库 .github/workflows/mac-remote.yml
+# 然后在 GitHub 仓库 Actions 页手动 Run workflow，
+# 打开运行日志里的 tmate 步骤，里面有 SSH 命令和网页终端链接。
+on:
+  workflow_dispatch:
+jobs:
+  mac:
+    runs-on: macos-14        # Apple Silicon (M1)；要 Intel 改 macos-13
+    timeout-minutes: 350     # 单个 job 上限 6 小时，留余量填 350
+    steps:
+      - name: Start tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true   # 只允许仓库所有者连接，务必保留
