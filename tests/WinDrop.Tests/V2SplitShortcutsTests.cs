@@ -229,6 +229,9 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
         Assert.Contains("<integer>5</integer>", sendXml);
         Assert.Contains("WFTokenAttachmentParameterState", sendXml);
         Assert.Contains("ShowHeaders", sendXml);
+        Assert.Contains("is.workflow.actions.conditional", sendXml);
+        Assert.Contains("<integer>100</integer>", sendXml);
+        Assert.Contains("is.workflow.actions.getclipboard", sendXml);
         Assert.Contains("is.workflow.actions.count", sendXml);
         Assert.Contains("is.workflow.actions.repeat.each", sendXml);
         Assert.Contains("is.workflow.actions.notification", sendXml);

@@ -41,11 +41,36 @@
     <array>
         <dict>
             <key>WFWorkflowActionIdentifier</key>
+            <string>is.workflow.actions.conditional</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>GroupingIdentifier</key>
+                <string>7C92E140-5B61-4D8B-91A2-33F4D8120B01</string>
+                <key>WFCondition</key>
+                <integer>100</integer>
+                <key>WFControlFlowMode</key>
+                <integer>0</integer>
+                <key>WFInput</key>
+                <dict>
+                    <key>Type</key>
+                    <string>Variable</string>
+                    <key>Variable</key>
+                    <dict>
+                        <key>Value</key>
+                        <dict><key>Type</key><string>ExtensionInput</string></dict>
+                        <key>WFSerializationType</key>
+                        <string>WFTextTokenAttachment</string>
+                    </dict>
+                </dict>
+            </dict>
+        </dict>
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
             <string>is.workflow.actions.count</string>
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>UUID</key>
-                <string>3176EFB8-ADCC-4D18-8612-4035950A07DF</string>
+                <string>2B18E410-1F94-41A8-A9C1-5F8A00C2D102</string>
                 <key>WFCountType</key>
                 <string>Items</string>
                 <key>Input</key>
@@ -63,7 +88,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>GroupingIdentifier</key>
-                <string>F8B8AA79-B3CF-4869-B656-D312E3F90403</string>
+                <string>A41D92B0-7E31-428C-B1F2-88E34D59A103</string>
                 <key>WFControlFlowMode</key>
                 <integer>0</integer>
                 <key>WFInput</key>
@@ -81,7 +106,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>UUID</key>
-                <string>0D90D4E3-29E6-471E-A8CC-F0663B2D49EC</string>
+                <string>9E72C110-4D2B-4F31-98AA-44C21E79D104</string>
                 <key>ShowHeaders</key>
                 <true/>
                 <key>WFHTTPMethod</key>
@@ -97,23 +122,23 @@
                         <key>WFDictionaryFieldValueItems</key>
                         <array>
                             <dict>
-    <key>WFItemType</key>
-    <integer>0</integer>
-    <key>WFKey</key>
-    <dict>
-        <key>Value</key>
-        <dict><key>string</key><string>Authorization</string></dict>
-        <key>WFSerializationType</key>
-        <string>WFTextTokenString</string>
-    </dict>
-    <key>WFValue</key>
-    <dict>
-        <key>Value</key>
-        <dict><key>string</key><string>YOUR_KEY</string></dict>
-        <key>WFSerializationType</key>
-        <string>WFTextTokenString</string>
-    </dict>
-</dict>
+                                <key>WFItemType</key>
+                                <integer>0</integer>
+                                <key>WFKey</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict><key>string</key><string>Authorization</string></dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenString</string>
+                                </dict>
+                                <key>WFValue</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict><key>string</key><string>YOUR_KEY</string></dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenString</string>
+                                </dict>
+                            </dict>
                         </array>
                     </dict>
                     <key>WFSerializationType</key>
@@ -166,7 +191,7 @@
             <key>WFWorkflowActionParameters</key>
             <dict>
                 <key>GroupingIdentifier</key>
-                <string>F8B8AA79-B3CF-4869-B656-D312E3F90403</string>
+                <string>A41D92B0-7E31-428C-B1F2-88E34D59A103</string>
                 <key>WFControlFlowMode</key>
                 <integer>2</integer>
             </dict>
@@ -189,7 +214,7 @@
                                 <key>OutputName</key>
                                 <string>计数</string>
                                 <key>OutputUUID</key>
-                                <string>3176EFB8-ADCC-4D18-8612-4035950A07DF</string>
+                                <string>2B18E410-1F94-41A8-A9C1-5F8A00C2D102</string>
                                 <key>Type</key>
                                 <string>ActionOutput</string>
                             </dict>
@@ -200,6 +225,158 @@
                     <key>WFSerializationType</key>
                     <string>WFTextTokenString</string>
                 </dict>
+            </dict>
+        </dict>
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>is.workflow.actions.conditional</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>GroupingIdentifier</key>
+                <string>7C92E140-5B61-4D8B-91A2-33F4D8120B01</string>
+                <key>WFControlFlowMode</key>
+                <integer>1</integer>
+            </dict>
+        </dict>
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>is.workflow.actions.getclipboard</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>UUID</key>
+                <string>6D44A201-8C91-4E53-A10B-7B12F310E105</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>is.workflow.actions.downloadurl</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>UUID</key>
+                <string>5F81B904-3E19-4C8A-8F2E-99D0A57B1106</string>
+                <key>ShowHeaders</key>
+                <true/>
+                <key>WFHTTPMethod</key>
+                <string>POST</string>
+                <key>WFHTTPBodyType</key>
+                <string>Form</string>
+                <key>WFURL</key>
+                <string>http://YOUR-PC.local:58446/v2/send</string>
+                <key>WFHTTPHeaders</key>
+                <dict>
+                    <key>Value</key>
+                    <dict>
+                        <key>WFDictionaryFieldValueItems</key>
+                        <array>
+                            <dict>
+                                <key>WFItemType</key>
+                                <integer>0</integer>
+                                <key>WFKey</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict><key>string</key><string>Authorization</string></dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenString</string>
+                                </dict>
+                                <key>WFValue</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict><key>string</key><string>YOUR_KEY</string></dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenString</string>
+                                </dict>
+                            </dict>
+                        </array>
+                    </dict>
+                    <key>WFSerializationType</key>
+                    <string>WFDictionaryFieldValue</string>
+                </dict>
+                <key>WFFormValues</key>
+                <dict>
+                    <key>Value</key>
+                    <dict>
+                        <key>WFDictionaryFieldValueItems</key>
+                        <array>
+                            <dict>
+                                <key>WFItemType</key>
+                                <integer>0</integer>
+                                <key>WFKey</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict><key>string</key><string>text</string></dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenString</string>
+                                </dict>
+                                <key>WFValue</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict>
+                                        <key>attachmentsByRange</key>
+                                        <dict>
+                                            <key>{0, 1}</key>
+                                            <dict>
+                                                <key>OutputName</key>
+                                                <string>剪贴板</string>
+                                                <key>OutputUUID</key>
+                                                <string>6D44A201-8C91-4E53-A10B-7B12F310E105</string>
+                                                <key>Type</key>
+                                                <string>ActionOutput</string>
+                                            </dict>
+                                        </dict>
+                                        <key>string</key>
+                                        <string>&#xFFFC;</string>
+                                    </dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenString</string>
+                                </dict>
+                            </dict>
+                        </array>
+                    </dict>
+                    <key>WFSerializationType</key>
+                    <string>WFDictionaryFieldValue</string>
+                </dict>
+            </dict>
+        </dict>
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>is.workflow.actions.notification</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>WFNotificationActionTitle</key>
+                <string>WinDrop 发送完成</string>
+                <key>WFNotificationActionBody</key>
+                <dict>
+                    <key>Value</key>
+                    <dict>
+                        <key>attachmentsByRange</key>
+                        <dict>
+                            <key>{0, 1}</key>
+                            <dict>
+                                <key>OutputName</key>
+                                <string>URL 的内容</string>
+                                <key>OutputUUID</key>
+                                <string>5F81B904-3E19-4C8A-8F2E-99D0A57B1106</string>
+                                <key>Type</key>
+                                <string>ActionOutput</string>
+                            </dict>
+                        </dict>
+                        <key>string</key>
+                        <string>&#xFFFC;</string>
+                    </dict>
+                    <key>WFSerializationType</key>
+                    <string>WFTextTokenString</string>
+                </dict>
+            </dict>
+        </dict>
+        <dict>
+            <key>WFWorkflowActionIdentifier</key>
+            <string>is.workflow.actions.conditional</string>
+            <key>WFWorkflowActionParameters</key>
+            <dict>
+                <key>GroupingIdentifier</key>
+                <string>7C92E140-5B61-4D8B-91A2-33F4D8120B01</string>
+                <key>WFControlFlowMode</key>
+                <integer>2</integer>
             </dict>
         </dict>
     </array>

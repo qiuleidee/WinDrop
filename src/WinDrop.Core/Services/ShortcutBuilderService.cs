@@ -19,20 +19,24 @@ public static class ShortcutBuilderService
     private const string ActionSaveToPhotoAlbum = "is.workflow.actions.savetocameraroll";
     private const string ActionSaveFile = "is.workflow.actions.documentpicker.save";
     private const string ActionCount = "is.workflow.actions.count";
+    private const string ActionGetClipboard = "is.workflow.actions.getclipboard";
     private const string RangeZeroOneKey = "{0, 1}";
     private const string RangeTenOneKey = "{10, 1}";
 
     /// <summary>
-    /// 生成「发送到电脑（共享表单自动发）」完整动作流 Plist
-    /// 动作流：统计共享表单数量 -> 循环逐项 POST /v2/send (Multipart Form: file) -> 显示结果通知
+    /// 生成「发送到电脑（共享多文件 + 无输入发剪贴板文本双合一）」完整动作流 Plist
+    /// 动作流：若存在共享表单输入 -> 统计数量 + 循环 POST /v2/send (file) + 通知；否则 -> 获取剪贴板 -> POST /v2/send (text) -> 通知
     /// </summary>
     public static byte[] BuildSendToWindowsShortcutPlist(string host, int port, string key)
     {
         string sendUrl = SecurityElement.Escape($"http://{host}:{port}/v2/send")!;
         string escapedKey = SecurityElement.Escape(key)!;
+        string inputCheckGroupId = Guid.NewGuid().ToString().ToUpperInvariant();
         string countUuid = Guid.NewGuid().ToString().ToUpperInvariant();
         string repeatGroupId = Guid.NewGuid().ToString().ToUpperInvariant();
         string httpActionUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string clipUuid = Guid.NewGuid().ToString().ToUpperInvariant();
+        string clipHttpUuid = Guid.NewGuid().ToString().ToUpperInvariant();
 
         string xml = $"""
             <?xml version="1.0" encoding="UTF-8"?>
@@ -76,6 +80,31 @@ public static class ShortcutBuilderService
                 <array/>
                 <key>WFWorkflowActions</key>
                 <array>
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionConditional}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>GroupingIdentifier</key>
+                            <string>{inputCheckGroupId}</string>
+                            <key>WFCondition</key>
+                            <integer>100</integer>
+                            <key>WFControlFlowMode</key>
+                            <integer>0</integer>
+                            <key>WFInput</key>
+                            <dict>
+                                <key>Type</key>
+                                <string>Variable</string>
+                                <key>Variable</key>
+                                <dict>
+                                    <key>Value</key>
+                                    <dict><key>Type</key><string>ExtensionInput</string></dict>
+                                    <key>WFSerializationType</key>
+                                    <string>WFTextTokenAttachment</string>
+                                </dict>
+                            </dict>
+                        </dict>
+                    </dict>
                     <dict>
                         <key>WFWorkflowActionIdentifier</key>
                         <string>{ActionCount}</string>
@@ -222,6 +251,121 @@ public static class ShortcutBuilderService
                             </dict>
                         </dict>
                     </dict>
+                    {BuildIfElse(inputCheckGroupId)}
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionGetClipboard}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>UUID</key>
+                            <string>{clipUuid}</string>
+                        </dict>
+                    </dict>
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionGetContentsOfUrl}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>UUID</key>
+                            <string>{clipHttpUuid}</string>
+                            <key>ShowHeaders</key>
+                            <true/>
+                            <key>WFHTTPMethod</key>
+                            <string>POST</string>
+                            <key>WFHTTPBodyType</key>
+                            <string>Form</string>
+                            <key>WFURL</key>
+                            <string>{sendUrl}</string>
+                            <key>WFHTTPHeaders</key>
+                            <dict>
+                                <key>Value</key>
+                                <dict>
+                                    <key>WFDictionaryFieldValueItems</key>
+                                    <array>
+                                        {BuildDictTextItem("Authorization", escapedKey)}
+                                    </array>
+                                </dict>
+                                <key>WFSerializationType</key>
+                                <string>WFDictionaryFieldValue</string>
+                            </dict>
+                            <key>WFFormValues</key>
+                            <dict>
+                                <key>Value</key>
+                                <dict>
+                                    <key>WFDictionaryFieldValueItems</key>
+                                    <array>
+                                        <dict>
+                                            <key>WFItemType</key>
+                                            <integer>0</integer>
+                                            <key>WFKey</key>
+                                            <dict>
+                                                <key>Value</key>
+                                                <dict><key>string</key><string>text</string></dict>
+                                                <key>WFSerializationType</key>
+                                                <string>WFTextTokenString</string>
+                                            </dict>
+                                            <key>WFValue</key>
+                                            <dict>
+                                                <key>Value</key>
+                                                <dict>
+                                                    <key>attachmentsByRange</key>
+                                                    <dict>
+                                                        <key>{RangeZeroOneKey}</key>
+                                                        <dict>
+                                                            <key>OutputName</key>
+                                                            <string>剪贴板</string>
+                                                            <key>OutputUUID</key>
+                                                            <string>{clipUuid}</string>
+                                                            <key>Type</key>
+                                                            <string>ActionOutput</string>
+                                                        </dict>
+                                                    </dict>
+                                                    <key>string</key>
+                                                    <string>&#xFFFC;</string>
+                                                </dict>
+                                                <key>WFSerializationType</key>
+                                                <string>WFTextTokenString</string>
+                                            </dict>
+                                        </dict>
+                                    </array>
+                                </dict>
+                                <key>WFSerializationType</key>
+                                <string>WFDictionaryFieldValue</string>
+                            </dict>
+                        </dict>
+                    </dict>
+                    <dict>
+                        <key>WFWorkflowActionIdentifier</key>
+                        <string>{ActionNotification}</string>
+                        <key>WFWorkflowActionParameters</key>
+                        <dict>
+                            <key>WFNotificationActionTitle</key>
+                            <string>WinDrop 发送完成</string>
+                            <key>WFNotificationActionBody</key>
+                            <dict>
+                                <key>Value</key>
+                                <dict>
+                                    <key>attachmentsByRange</key>
+                                    <dict>
+                                        <key>{RangeZeroOneKey}</key>
+                                        <dict>
+                                            <key>OutputName</key>
+                                            <string>URL 的内容</string>
+                                            <key>OutputUUID</key>
+                                            <string>{clipHttpUuid}</string>
+                                            <key>Type</key>
+                                            <string>ActionOutput</string>
+                                        </dict>
+                                    </dict>
+                                    <key>string</key>
+                                    <string>&#xFFFC;</string>
+                                </dict>
+                                <key>WFSerializationType</key>
+                                <string>WFTextTokenString</string>
+                            </dict>
+                        </dict>
+                    </dict>
+                    {BuildIfEnd(inputCheckGroupId)}
                 </array>
             </dict>
             </plist>
