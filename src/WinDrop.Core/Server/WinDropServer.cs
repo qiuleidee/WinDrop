@@ -34,9 +34,11 @@ public sealed class WinDropServer : IAsyncDisposable
 
     public int ListeningPort { get; private set; }
     public string PrimaryMdnsDomain => _mdns?.PrimaryDomain ?? $"{Dns.GetHostName()}.local";
-    public IPAddress LocalIp => NetworkHelper.GetPrimaryLocalIPv4();
+    public IPAddress LocalIp => NetworkHelper.GetPrimaryLocalIPv4(_state.Config.PreferredLocalIp);
     public WinDropStateService State => _state;
     public IPushNotificationService PushService => _pushService;
+
+    public void RefreshNetworkBindings() => _mdns?.RequestInterfaceRefresh();
 
     public WinDropServer(
         WinDropStateService state,
@@ -82,11 +84,12 @@ public sealed class WinDropServer : IAsyncDisposable
 
         var app = builder.Build();
 
-        // 统一密钥校验中间件（放行 /、/setup、/icon.svg 以及自带高熵短 Ticket 鉴权的 /v2/dl/）
+        // 统一密钥校验中间件（放行 /、/ping、/setup、/icon.svg 以及自带高熵短 Ticket 鉴权的 /v2/dl/）
         app.Use(async (ctx, next) =>
         {
             string path = ctx.Request.Path.Value ?? "/";
             if (path == "/" ||
+                path.Equals("/ping", StringComparison.OrdinalIgnoreCase) ||
                 path.Equals("/setup", StringComparison.OrdinalIgnoreCase) ||
                 path.Equals("/icon.svg", StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith("/v2/dl/", StringComparison.OrdinalIgnoreCase))
@@ -106,12 +109,19 @@ public sealed class WinDropServer : IAsyncDisposable
             await next();
         });
 
-        // 1. GET / —— 快捷指令连通性测试接口
+        // 1. GET / & GET /ping —— 快捷指令连通性测试与健康探针接口
         app.MapGet("/", () =>
         {
             _state.Notify("✅ 连接测试成功", "iPhone 已成功连通本台 Windows 电脑！");
             return Results.Text("Hello World!", "text/plain; charset=utf-8");
         });
+        app.MapGet("/ping", () => Results.Json(new
+        {
+            ok = true,
+            host = PrimaryMdnsDomain,
+            ip = LocalIp.ToString(),
+            port = ListeningPort
+        }));
 
         // 2. GET /setup —— iPhone 扫码一键安装成品快捷指令与一键复制配置参数页
         app.MapGet("/setup", (HttpContext ctx) =>
@@ -138,7 +148,7 @@ public sealed class WinDropServer : IAsyncDisposable
 
         if (_enableMdns && !bindLoopbackOnly)
         {
-            _mdns = new MdnsResponder(ListeningPort);
+            _mdns = new MdnsResponder(ListeningPort, preferredIpProvider: () => _state.Config.PreferredLocalIp);
             await _mdns.StartAsync(cancellationToken);
         }
     }
@@ -413,6 +423,33 @@ public sealed class WinDropServer : IAsyncDisposable
             }
         }
         else if (!string.IsNullOrWhiteSpace(contentType) &&
+                 contentType.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase) &&
+                 string.IsNullOrWhiteSpace(ctx.Request.Headers["X-File-Name"].FirstOrDefault()))
+        {
+            var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+            string? formText = form["text"].FirstOrDefault()
+                               ?? form["clipboard"].FirstOrDefault()
+                               ?? form["content"].FirstOrDefault()
+                               ?? form.Select(kv => kv.Value.FirstOrDefault())
+                                      .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+            if (!string.IsNullOrWhiteSpace(formText))
+            {
+                savedText = formText.Trim();
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(contentType) &&
+                 contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) &&
+                 string.IsNullOrWhiteSpace(ctx.Request.Headers["X-File-Name"].FirstOrDefault()))
+        {
+            using var sr = new StreamReader(ctx.Request.Body, Encoding.UTF8);
+            string rawJson = (await sr.ReadToEndAsync(ctx.RequestAborted)).Trim();
+            string? extracted = TryExtractJsonTextField(rawJson);
+            if (!string.IsNullOrWhiteSpace(extracted))
+            {
+                savedText = extracted.Trim();
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(contentType) &&
                  contentType.StartsWith("text/plain", StringComparison.OrdinalIgnoreCase) &&
                  string.IsNullOrWhiteSpace(ctx.Request.Headers["X-File-Name"].FirstOrDefault()))
         {
@@ -433,6 +470,30 @@ public sealed class WinDropServer : IAsyncDisposable
         }
 
         return new IncomingUploadResult(savedPaths, savedText);
+    }
+
+    private static string? TryExtractJsonTextField(string rawJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawJson) || !rawJson.StartsWith('{'))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            foreach (string key in new[] { "text", "clipboard", "content" })
+            {
+                if (doc.RootElement.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.String)
+                {
+                    return prop.GetString();
+                }
+            }
+        }
+        catch
+        {
+            // 非标准 JSON 时忽略
+        }
+
+        return null;
     }
 
     private static string GenerateDefaultNameFromContentType(string? contentType)
@@ -822,6 +883,22 @@ public sealed class WinDropServer : IAsyncDisposable
         string v2SendUrl = System.Net.WebUtility.HtmlEncode($"{activeBase}/v2/send");
         string v2ReceiveUrl = System.Net.WebUtility.HtmlEncode($"{activeBase}/v2/receive");
 
+        var eligibleIps = NetworkHelper.GetEligibleLanEndpoints(_state.Config.PreferredLocalIp);
+        var altIpsSb = new StringBuilder();
+        for (int i = 0; i < eligibleIps.Count; i++)
+        {
+            var ep = eligibleIps[i];
+            string epIp = System.Net.WebUtility.HtmlEncode(ep.IpAddress.ToString());
+            string label = System.Net.WebUtility.HtmlEncode($"{ep.CategoryLabel} · {ep.InterfaceName}");
+            altIpsSb.AppendLine($"""
+                <div class="row">
+                  <div><div class="lbl">{label}</div><div class="val" id="altIp{i}">http://{epIp}:{port}</div></div>
+                  <button class="copy-btn" onclick="cp('altIp{i}')">复制</button>
+                </div>
+                """);
+        }
+        string candidateIpsHtml = altIpsSb.ToString();
+
         string splitInstallHtml = string.Empty;
         if (!string.IsNullOrWhiteSpace(_state.Config.CustomSendShortcutUrl) ||
             !string.IsNullOrWhiteSpace(_state.Config.CustomReceiveShortcutUrl))
@@ -869,13 +946,13 @@ public sealed class WinDropServer : IAsyncDisposable
               </div>
 
               <div class="card">
-                <h2>第 2 步：首次添加时填入以下 3 项参数</h2>
+                <h2>第 2 步：首次添加时填入以下参数</h2>
                 <div class="row">
-                  <div><div class="lbl">主机域名 (host · 推荐填此项，换 Wi-Fi 不失效)</div><div class="val" id="vHost">{{mdns}}</div></div>
+                  <div><div class="lbl">主机域名 (host · 家用 Wi-Fi 推荐，换 IP 不失效)</div><div class="val" id="vHost">{{mdns}}</div></div>
                   <button class="copy-btn" onclick="cp('vHost')">复制</button>
                 </div>
                 <div class="row">
-                  <div><div class="lbl">备用局域网 IP (若路由器不支持 .local 时填写)</div><div class="val" id="vIp">{{ip}}</div></div>
+                  <div><div class="lbl">首选局域网 IP (开启代理/VPN 或公共 Wi-Fi 时优先用 IP)</div><div class="val" id="vIp">{{ip}}</div></div>
                   <button class="copy-btn" onclick="cp('vIp')">复制</button>
                 </div>
                 <div class="row">
@@ -892,25 +969,27 @@ public sealed class WinDropServer : IAsyncDisposable
                 <h2>⚡ 进阶：零菜单拆分版快捷指令（无弹窗 · 智能存相册）</h2>
                 <p>如果你希望把「发到电脑」与「从电脑接收」完全拆开（点接收再也不弹 Send/Receive 选择菜单，且照片视频自动存入系统相册、文档自动存文件、网址直开 Safari），使用以下 v2 专线接口即可：</p>
                 <div class="row">
-                  <div><div class="lbl">发送专线接口 (POST · 表单字段 file)</div><div class="val" id="v2Send">{{v2SendUrl}}</div></div>
+                  <div><div class="lbl">发送专线接口 (POST · 表单字段 file/text)</div><div class="val" id="v2Send">{{v2SendUrl}}</div></div>
                   <button class="copy-btn" onclick="cp('v2Send')">复制</button>
                 </div>
                 <div class="row">
                   <div><div class="lbl">接收专线接口 (GET · 加 ?direct=1 可直接拿单文件)</div><div class="val" id="v2Recv">{{v2ReceiveUrl}}</div></div>
                   <button class="copy-btn" onclick="cp('v2Recv')">复制</button>
                 </div>
+                {{candidateIpsHtml}}
                 <div class="tip">
                   <b>三步配置极简版：</b><br/>
-                  • <b>发到电脑</b>：开启「在共享表单显示」→ 动作「获取 URL 内容」→ POST 上方发送专线 → 头部填 <code>Authorization: {{key}}</code> → 请求体选表单，字段 <code>file</code> = 快捷指令输入。<br/>
-                  • <b>从电脑接收</b>：可绑定「操作按钮 / 轻点背面 / Bark 唤醒名称设为『从电脑接收』」→ GET 上方接收专线，支持一键解析 <code>category</code>（image/video 存相簿、file 存文件、url 打开、text 拷剪贴板）。
+                  • <b>发到电脑</b>：开启「在共享表单显示」→ 动作「获取 URL 内容」→ POST 上方发送专线 → 头部填 <code>Authorization: {{key}}</code> → 请求体选表单，字段 <code>file</code> = 重复项目。<br/>
+                  • <b>从电脑接收</b>：可绑定「操作按钮 / 轻点背面 / Bark 唤醒名称设为『WinDrop接收』」→ GET 上方接收专线。
                 </div>
               </div>
 
               <div class="card tip">
-                <b>💡 日常使用秘籍：</b><br/>
-                1. <b>手机发电脑</b>：在相册/文件点「分享」→ 选择该快捷指令，自动秒传到电脑接收目录。<br/>
-                2. <b>电脑发手机</b>：在电脑对文件按 <b>Ctrl+C 复制</b> 或 <b>右键 → 通过 WinDrop 分享</b>，然后在手机点击接收（或轻点 Bark 推送横幅）即可直接接收！<br/>
-                3. <b>多张原图必开设置</b>：首次传多图前，请前往 iPhone「设置 → App → 快捷指令 → 高级 → 开启『允许共享大量数据』」。
+                <b>🌐 复杂网络 / 代理 / 公共 Wi-Fi 连不上怎么办：</b><br/>
+                1. <b>开启了代理 / TUN / Fake-IP</b>：代理规则可能接管 <code>.local</code>，请直接把上面「候选物理网卡/热点 IP」替换进快捷指令 URL（不要用 <code>.local</code>），或在手机代理软件内将 <code>*.local</code> 设为 <code>DIRECT</code>。<br/>
+                2. <b>酒店/校园网/公司公共 Wi-Fi 隔离</b>：此类路由器禁止同网段设备互访，打开电脑的「Windows 移动热点」（或手机开个人热点让电脑连上），再连接 <code>192.168.137.1</code> 即可百分百直连！<br/>
+                3. <b>电脑提示防火墙阻拦</b>：在电脑设置窗再点击一次「🛡️ 一键放行防火墙」即可自动清除公用网络拦截规则。<br/>
+                4. <b>多张原图必开设置</b>：首次传多图前，请前往 iPhone「设置 → App → 快捷指令 → 高级 → 开启『允许共享大量数据』」。
               </div>
 
               <script>

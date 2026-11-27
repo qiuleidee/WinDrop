@@ -11,6 +11,9 @@ public sealed class AppConfig
     /// <summary>访问密钥（快捷指令 Authorization 请求头校验）</summary>
     public string Key { get; set; } = string.Empty;
 
+    /// <summary>可选：手动锁定的本机局域网 IP（留空表示自动智能优选并过滤 TUN/虚拟网卡）</summary>
+    public string PreferredLocalIp { get; set; } = string.Empty;
+
     /// <summary>接收文件的保存目录</summary>
     public string SaveDirectory { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),

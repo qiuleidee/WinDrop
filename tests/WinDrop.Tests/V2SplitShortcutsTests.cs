@@ -95,6 +95,33 @@ public sealed class V2SplitShortcutsTests : IAsyncLifetime
         var snap = await _clipboard.GetClipboardSnapshotAsync();
         Assert.Equal("https://example.com/v2-share", snap.Text);
 
+        // 3.1 iOS 快捷指令表单纯文本 (application/x-www-form-urlencoded) 必须直接写剪贴板且禁止落盘为 .dat 文件
+        const string multilineAddress = "963 Sampaguita Street\r\nBrgy. Panasahan\r\nMalolos City, Bulacan 3000\r\nPhilippines";
+        using (var formTextReq = new HttpRequestMessage(HttpMethod.Post, "/v2/send"))
+        {
+            formTextReq.Headers.TryAddWithoutValidation("Authorization", TestKey);
+            formTextReq.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("text", multilineAddress)
+            });
+            var formTextRes = await _http.SendAsync(formTextReq);
+            Assert.Equal(HttpStatusCode.OK, formTextRes.StatusCode);
+            Assert.Contains("已复制手机分享的文本到电脑剪贴板", await formTextRes.Content.ReadAsStringAsync());
+        }
+        Assert.Equal(multilineAddress, (await _clipboard.GetClipboardSnapshotAsync()).Text);
+        Assert.Empty(Directory.GetFiles(_state.Config.SaveDirectory, "*.dat"));
+
+        // 3.2 application/json 纯文本同样直接写剪贴板而不落盘
+        using (var jsonTextReq = new HttpRequestMessage(HttpMethod.Post, "/v2/send"))
+        {
+            jsonTextReq.Headers.TryAddWithoutValidation("Authorization", TestKey);
+            jsonTextReq.Content = new StringContent("{\"text\":\"json-clip-test\"}", Encoding.UTF8, "application/json");
+            var jsonTextRes = await _http.SendAsync(jsonTextReq);
+            Assert.Equal(HttpStatusCode.OK, jsonTextRes.StatusCode);
+        }
+        Assert.Equal("json-clip-test", (await _clipboard.GetClipboardSnapshotAsync()).Text);
+        Assert.Empty(Directory.GetFiles(_state.Config.SaveDirectory, "*.dat"));
+
         // 4. 原始二进制流（无 X-File-Name 时根据 Content-Type 自动推断 .png 扩展名）
         byte[] rawPng = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3 };
         using (var binReq = new HttpRequestMessage(HttpMethod.Post, "/v2/send?format=json"))

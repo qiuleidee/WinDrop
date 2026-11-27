@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using WinDrop.Core.Models;
+using WinDrop.Core.Network;
 
 namespace WinDrop.Core.Services;
 
@@ -13,13 +14,14 @@ public sealed record BarkEndpointInfo(string ServerBaseUrl, string DeviceKey);
 /// <summary>
 /// 基于 Bark (APNs) 的 iPhone 原生锁屏/横幅主动推送唤醒服务
 /// 支持官方服务器 (https://api.day.app) 与用户私有自建 Bark Server
-/// 点击通知横幅直接通过 shortcuts://run-shortcut?name=... 自动唤起接收快捷指令拉取电脑文件
+/// 内置代理故障自动回退无代理直连通道，避免系统代理异常导致推送失效
 /// </summary>
 public sealed class BarkPushService : IPushNotificationService, IDisposable
 {
     public const string DefaultBarkServer = "https://api.day.app";
 
     private readonly HttpClient _httpClient;
+    private readonly HttpClient? _directClient;
     private readonly bool _ownsClient;
 
     public BarkPushService(HttpClient? customHttpClient = null)
@@ -27,6 +29,7 @@ public sealed class BarkPushService : IPushNotificationService, IDisposable
         if (customHttpClient != null)
         {
             _httpClient = customHttpClient;
+            _directClient = null;
             _ownsClient = false;
         }
         else
@@ -35,8 +38,22 @@ public sealed class BarkPushService : IPushNotificationService, IDisposable
             {
                 Timeout = TimeSpan.FromSeconds(6)
             };
+            _directClient = new HttpClient(new SocketsHttpHandler { UseProxy = false })
+            {
+                Timeout = TimeSpan.FromSeconds(6)
+            };
             _ownsClient = true;
         }
+    }
+
+    /// <summary>
+    /// 可测试构造函数：显式指定主客户端与无代理直连回退客户端
+    /// </summary>
+    public BarkPushService(HttpClient primaryClient, HttpClient? fallbackDirectClient)
+    {
+        _httpClient = primaryClient ?? throw new ArgumentNullException(nameof(primaryClient));
+        _directClient = fallbackDirectClient;
+        _ownsClient = false;
     }
 
     /// <summary>
@@ -138,42 +155,93 @@ public sealed class BarkPushService : IPushNotificationService, IDisposable
         }
 
         string pushApiUrl = $"{endpoint.ServerBaseUrl.TrimEnd('/')}/push";
+        bool isLocalTarget = Uri.TryCreate(pushApiUrl, UriKind.Absolute, out var parsedUri) &&
+                             NetworkHelper.IsPrivateOrLocalHost(parsedUri.Host);
+
+        HttpClient preferredClient = (isLocalTarget && _directClient != null)
+            ? _directClient
+            : _httpClient;
 
         try
         {
-            using var response = await _httpClient.PostAsJsonAsync(pushApiUrl, payload, cancellationToken);
-            string respText = await response.Content.ReadAsStringAsync(cancellationToken);
+            var (response, usedFallback) = await PostWithDirectFallbackAsync(
+                pushApiUrl,
+                payload,
+                preferredClient,
+                isLocalTarget,
+                cancellationToken);
 
-            if (response.StatusCode == HttpStatusCode.OK)
+            using (response)
             {
-                try
+                string respText = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (response.StatusCode == HttpStatusCode.OK)
                 {
-                    using var doc = JsonDocument.Parse(respText);
-                    if (doc.RootElement.TryGetProperty("code", out var codeProp) && codeProp.GetInt32() != 200)
+                    try
                     {
-                        string errMsg = doc.RootElement.TryGetProperty("message", out var mp)
-                            ? mp.GetString() ?? "未知错误"
-                            : "推送服务器返回非 200 状态";
-                        return (false, $"推送未送达：{errMsg}");
+                        using var doc = JsonDocument.Parse(respText);
+                        if (doc.RootElement.TryGetProperty("code", out var codeProp) && codeProp.GetInt32() != 200)
+                        {
+                            string errMsg = doc.RootElement.TryGetProperty("message", out var mp)
+                                ? mp.GetString() ?? "未知错误"
+                                : "推送服务器返回非 200 状态";
+                            return (false, $"推送未送达：{errMsg}");
+                        }
                     }
-                }
-                catch
-                {
-                    // 兼容部分自建代理仅返回 HTTP 200 状态码
+                    catch
+                    {
+                        // 兼容部分自建代理仅返回 HTTP 200 状态码
+                    }
+
+                    return (true, usedFallback
+                        ? "已向 iPhone 发送弹窗通知！（已自动绕过系统代理直连）"
+                        : "已向 iPhone 发送弹窗通知！");
                 }
 
-                return (true, "已向 iPhone 发送弹窗通知！");
+                return (false, $"推送服务响应异常 (HTTP {(int)response.StatusCode})");
             }
-
-            return (false, $"推送服务响应异常 (HTTP {(int)response.StatusCode})");
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return (false, "推送请求超时，请检查电脑是否可访问推送服务器。");
+            return (false, "推送请求超时，请检查电脑网络或系统代理设置。");
         }
         catch (Exception ex)
         {
             return (false, $"推送发送失败：{ex.Message}");
+        }
+    }
+
+    private async Task<(HttpResponseMessage Response, bool UsedDirectFallback)> PostWithDirectFallbackAsync(
+        string pushApiUrl,
+        Dictionary<string, object?> payload,
+        HttpClient preferredClient,
+        bool isLocalTarget,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resp = await preferredClient.PostAsJsonAsync(pushApiUrl, payload, cancellationToken);
+            // 若命中代理网关错误 (502/503/407) 且存在直连兜底，尝试绕过代理直连一次
+            if (!isLocalTarget &&
+                _directClient != null &&
+                !ReferenceEquals(preferredClient, _directClient) &&
+                resp.StatusCode is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.ProxyAuthenticationRequired)
+            {
+                resp.Dispose();
+                var directResp = await _directClient.PostAsJsonAsync(pushApiUrl, payload, cancellationToken);
+                return (directResp, true);
+            }
+            return (resp, false);
+        }
+        catch (Exception ex) when (
+            !cancellationToken.IsCancellationRequested &&
+            !isLocalTarget &&
+            _directClient != null &&
+            !ReferenceEquals(preferredClient, _directClient) &&
+            ex is HttpRequestException or TaskCanceledException)
+        {
+            var directResp = await _directClient.PostAsJsonAsync(pushApiUrl, payload, cancellationToken);
+            return (directResp, true);
         }
     }
 
@@ -182,6 +250,7 @@ public sealed class BarkPushService : IPushNotificationService, IDisposable
         if (_ownsClient)
         {
             _httpClient.Dispose();
+            _directClient?.Dispose();
         }
     }
 }

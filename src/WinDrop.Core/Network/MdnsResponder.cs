@@ -8,7 +8,10 @@ namespace WinDrop.Core.Network;
 
 /// <summary>
 /// 纯 C# 零依赖 RFC 6762 mDNS 响应服务
-/// 直接使用本机计算机名 (<计算机名>.local) 广播与响应 A 记录，无需安装 Apple Bonjour
+/// 针对多网卡 / 代理 TUN 模式 / 公共网络增强：
+/// 1. 仅在非 TUN 真实物理/热点网卡加入组播并绑定按接口发送通道，绕过 TUN 低跃点路由劫持；
+/// 2. 收到查询时按来源子网动态匹配本机 IP，并采用「单播直回 + 接口组播」双发策略穿透受限 Wi-Fi；
+/// 3. 监听系统网络变化自动热重载通道，实时响应热点开关或网络切换。
 /// </summary>
 public sealed class MdnsResponder : IAsyncDisposable
 {
@@ -25,18 +28,24 @@ public sealed class MdnsResponder : IAsyncDisposable
     private readonly string _primaryHostFqdn;
     private readonly string _serviceTypeFqdn = "_http._tcp.local.";
     private readonly string _instanceFqdn;
-    private int _servicePort;
+    private readonly Func<string?>? _preferredIpProvider;
+    private readonly object _channelLock = new();
+    private readonly Dictionary<string, OutboundInterfaceChannel> _outboundChannels = new(StringComparer.Ordinal);
 
-    private UdpClient? _udpClient;
+    private int _servicePort;
+    private UdpClient? _receiveClient;
     private CancellationTokenSource? _cts;
     private Task? _receiveLoopTask;
     private Task? _announceLoopTask;
+    private int _refreshPending;
 
     public string PrimaryDomain { get; }
     public IReadOnlyCollection<string> AllDomains => _hostFqdns.Select(h => h.TrimEnd('.')).ToList();
     public bool IsRunning { get; private set; }
 
-    public MdnsResponder(int servicePort, string? overrideHostName = null)
+    private sealed record OutboundInterfaceChannel(LocalNetworkEndpoint Endpoint, UdpClient Client);
+
+    public MdnsResponder(int servicePort, string? overrideHostName = null, Func<string?>? preferredIpProvider = null)
     {
         string hostName = string.IsNullOrWhiteSpace(overrideHostName)
             ? Dns.GetHostName()
@@ -54,12 +63,40 @@ public sealed class MdnsResponder : IAsyncDisposable
 
         _instanceFqdn = $"{hostName}.{_serviceTypeFqdn}";
         _servicePort = servicePort;
+        _preferredIpProvider = preferredIpProvider;
     }
 
     public void UpdatePort(int newPort)
     {
         _servicePort = newPort;
         _ = SendAnnouncementAsync();
+    }
+
+    public void RequestInterfaceRefresh()
+    {
+        if (!IsRunning)
+            return;
+
+        if (Interlocked.Exchange(ref _refreshPending, 1) != 0)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(500);
+                if (IsRunning)
+                {
+                    RebuildInterfaceChannels();
+                    await SendAnnouncementAsync();
+                }
+            }
+            catch { }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshPending, 0);
+            }
+        });
     }
 
     public Task StartAsync(CancellationToken cancellationToken = default)
@@ -74,9 +111,12 @@ public sealed class MdnsResponder : IAsyncDisposable
             client.ExclusiveAddressUse = false;
             client.Client.Bind(new IPEndPoint(IPAddress.Any, 5353));
 
-            JoinMulticastOnAllInterfaces(client.Client);
+            _receiveClient = client;
+            RebuildInterfaceChannels();
 
-            _udpClient = client;
+            NetworkChange.NetworkAddressChanged += OnNetworkEnvironmentChanged;
+            NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             IsRunning = true;
 
@@ -91,38 +131,127 @@ public sealed class MdnsResponder : IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    private static void JoinMulticastOnAllInterfaces(Socket socket)
+    private void OnNetworkEnvironmentChanged(object? sender, EventArgs e) => RequestInterfaceRefresh();
+    private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e) => RequestInterfaceRefresh();
+
+    private void RebuildInterfaceChannels()
+    {
+        if (_receiveClient == null)
+            return;
+
+        var eligible = NetworkHelper.GetEligibleLanEndpoints(_preferredIpProvider?.Invoke());
+        JoinMulticastOnEligibleInterfaces(_receiveClient.Client, eligible);
+
+        lock (_channelLock)
+        {
+            var nextKeys = eligible.Select(e => e.IpAddress.ToString()).ToHashSet(StringComparer.Ordinal);
+            foreach (string existingKey in _outboundChannels.Keys.ToList())
+            {
+                if (!nextKeys.Contains(existingKey))
+                {
+                    _outboundChannels[existingKey].Client.Dispose();
+                    _outboundChannels.Remove(existingKey);
+                }
+            }
+
+            foreach (var ep in eligible)
+            {
+                string key = ep.IpAddress.ToString();
+                if (_outboundChannels.ContainsKey(key))
+                {
+                    _outboundChannels[key] = _outboundChannels[key] with { Endpoint = ep };
+                    continue;
+                }
+
+                UdpClient? nicSender = TryCreateInterfaceSender(ep.IpAddress);
+                if (nicSender != null)
+                {
+                    _outboundChannels[key] = new OutboundInterfaceChannel(ep, nicSender);
+                }
+            }
+        }
+    }
+
+    private static UdpClient? TryCreateInterfaceSender(IPAddress localIp)
+    {
+        foreach (int bindPort in new[] { 5353, 0 })
+        {
+            UdpClient? sender = null;
+            try
+            {
+                sender = new UdpClient(AddressFamily.InterNetwork);
+                sender.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                sender.ExclusiveAddressUse = false;
+                sender.Client.Bind(new IPEndPoint(localIp, bindPort));
+                // 强制 IPv4 组播从当前物理/热点网卡发出，彻底避开代理 TUN 低跃点默认路由劫持
+                sender.Client.SetSocketOption(
+                    SocketOptionLevel.IP,
+                    SocketOptionName.MulticastInterface,
+                    localIp.GetAddressBytes());
+                sender.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
+                return sender;
+            }
+            catch
+            {
+                sender?.Dispose();
+            }
+        }
+
+        return null;
+    }
+
+    private static void JoinMulticastOnEligibleInterfaces(Socket socket, IReadOnlyList<LocalNetworkEndpoint> eligible)
     {
         bool joinedAny = false;
-        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+        foreach (var ep in eligible)
         {
-            if (nic.OperationalStatus != OperationalStatus.Up ||
-                nic.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
-                !nic.SupportsMulticast)
-                continue;
-
-            foreach (var ua in nic.GetIPProperties().UnicastAddresses)
+            try
             {
-                if (ua.Address.AddressFamily != AddressFamily.InterNetwork)
+                socket.SetSocketOption(
+                    SocketOptionLevel.IP,
+                    SocketOptionName.AddMembership,
+                    new MulticastOption(MulticastAddressIPv4, ep.IpAddress));
+                joinedAny = true;
+            }
+            catch { }
+        }
+
+        if (!joinedAny)
+        {
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != OperationalStatus.Up ||
+                    nic.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
+                    !nic.SupportsMulticast)
                     continue;
-                try
+
+                foreach (var ua in nic.GetIPProperties().UnicastAddresses)
                 {
-                    socket.SetSocketOption(
-                        SocketOptionLevel.IP,
-                        SocketOptionName.AddMembership,
-                        new MulticastOption(MulticastAddressIPv4, ua.Address));
-                    joinedAny = true;
+                    if (ua.Address.AddressFamily != AddressFamily.InterNetwork)
+                        continue;
+                    try
+                    {
+                        socket.SetSocketOption(
+                            SocketOptionLevel.IP,
+                            SocketOptionName.AddMembership,
+                            new MulticastOption(MulticastAddressIPv4, ua.Address));
+                        joinedAny = true;
+                    }
+                    catch { }
                 }
-                catch { }
             }
         }
 
         if (!joinedAny)
         {
-            socket.SetSocketOption(
-                SocketOptionLevel.IP,
-                SocketOptionName.AddMembership,
-                new MulticastOption(MulticastAddressIPv4));
+            try
+            {
+                socket.SetSocketOption(
+                    SocketOptionLevel.IP,
+                    SocketOptionName.AddMembership,
+                    new MulticastOption(MulticastAddressIPv4));
+            }
+            catch { }
         }
     }
 
@@ -136,10 +265,7 @@ public sealed class MdnsResponder : IAsyncDisposable
             while (!token.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(30), token);
-                if (_udpClient != null)
-                {
-                    JoinMulticastOnAllInterfaces(_udpClient.Client);
-                }
+                RebuildInterfaceChannels();
                 await SendAnnouncementAsync();
             }
         }
@@ -148,18 +274,27 @@ public sealed class MdnsResponder : IAsyncDisposable
 
     private async Task ReceiveLoopAsync(CancellationToken token)
     {
-        if (_udpClient == null)
+        if (_receiveClient == null)
             return;
 
         while (!token.IsCancellationRequested)
         {
             try
             {
-                var received = await _udpClient.ReceiveAsync(token);
-                if (TryBuildResponseForQuery(received.Buffer, NetworkHelper.GetPrimaryLocalIPv4(), out byte[]? response) &&
+                var received = await _receiveClient.ReceiveAsync(token);
+                var eligible = NetworkHelper.GetEligibleLanEndpoints(_preferredIpProvider?.Invoke());
+                IPAddress replyIp = NetworkHelper.SelectBestIpForRemotePeer(
+                    received.RemoteEndPoint.Address,
+                    eligible,
+                    _preferredIpProvider?.Invoke());
+
+                if (Equals(replyIp, IPAddress.Loopback))
+                    continue;
+
+                if (TryBuildResponseForQuery(received.Buffer, replyIp, out byte[]? response) &&
                     response != null)
                 {
-                    await _udpClient.SendAsync(response, MulticastEndpointIPv4, token);
+                    await SendResponseDualPathAsync(replyIp, received.RemoteEndPoint, response, token);
                 }
             }
             catch (OperationCanceledException)
@@ -170,21 +305,73 @@ public sealed class MdnsResponder : IAsyncDisposable
         }
     }
 
-    public async Task SendAnnouncementAsync()
+    private async Task SendResponseDualPathAsync(IPAddress replyIp, IPEndPoint remoteEndPoint, byte[] response, CancellationToken token)
     {
-        if (_udpClient == null || !IsRunning)
-            return;
+        UdpClient? nicSender = null;
+        lock (_channelLock)
+        {
+            if (_outboundChannels.TryGetValue(replyIp.ToString(), out var ch))
+            {
+                nicSender = ch.Client;
+            }
+        }
 
+        UdpClient activeSender = nicSender ?? _receiveClient!;
+        // 1. 先直接单播回复发起请求的手机端（即使公共 Wi-Fi 丢弃路由器组播也能直达）
         try
         {
-            IPAddress ip = NetworkHelper.GetPrimaryLocalIPv4();
-            if (Equals(ip, IPAddress.Loopback))
-                return;
-
-            byte[] packet = BuildAnnouncementPacket(ip);
-            await _udpClient.SendAsync(packet, MulticastEndpointIPv4);
+            if (remoteEndPoint.Address.AddressFamily == AddressFamily.InterNetwork &&
+                !Equals(remoteEndPoint.Address, IPAddress.Any))
+            {
+                await activeSender.SendAsync(response, remoteEndPoint, token);
+            }
         }
         catch { }
+
+        // 2. 再通过对应物理网卡发出组播响应，刷新局域网 mDNS 缓存
+        try
+        {
+            await activeSender.SendAsync(response, MulticastEndpointIPv4, token);
+        }
+        catch { }
+    }
+
+    public async Task SendAnnouncementAsync()
+    {
+        if (_receiveClient == null || !IsRunning)
+            return;
+
+        List<OutboundInterfaceChannel> snapshot;
+        lock (_channelLock)
+        {
+            snapshot = _outboundChannels.Values.ToList();
+        }
+
+        if (snapshot.Count == 0)
+        {
+            try
+            {
+                IPAddress ip = NetworkHelper.GetPrimaryLocalIPv4(_preferredIpProvider?.Invoke());
+                if (!Equals(ip, IPAddress.Loopback))
+                {
+                    byte[] packet = BuildAnnouncementPacket(ip);
+                    await _receiveClient.SendAsync(packet, MulticastEndpointIPv4);
+                }
+            }
+            catch { }
+            return;
+        }
+
+        // 在每个真实物理/热点网卡上分别广播自身局域网 IP，互不干扰、无视 TUN 路由
+        foreach (var channel in snapshot)
+        {
+            try
+            {
+                byte[] packet = BuildAnnouncementPacket(channel.Endpoint.IpAddress);
+                await channel.Client.SendAsync(packet, MulticastEndpointIPv4);
+            }
+            catch { }
+        }
     }
 
     public bool TryBuildResponseForQuery(ReadOnlySpan<byte> packet, IPAddress localIpv4, out byte[]? responseBytes)
@@ -357,33 +544,31 @@ public sealed class MdnsResponder : IAsyncDisposable
         return true;
     }
 
-    private static string SanitizeHostLabel(string raw, string fallback)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-            return fallback;
-        var sb = new StringBuilder();
-        foreach (char c in raw.Trim().ToLowerInvariant())
-        {
-            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')
-                sb.Append(c);
-            else if (c == '_' || c == ' ')
-                sb.Append('-');
-        }
-        string s = sb.ToString().Trim('-');
-        return string.IsNullOrEmpty(s) ? fallback : s;
-    }
-
     public async ValueTask DisposeAsync()
     {
         IsRunning = false;
+        NetworkChange.NetworkAddressChanged -= OnNetworkEnvironmentChanged;
+        NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+
         if (_cts != null)
         {
             await _cts.CancelAsync();
             _cts.Dispose();
             _cts = null;
         }
-        _udpClient?.Dispose();
-        _udpClient = null;
+
+        _receiveClient?.Dispose();
+        _receiveClient = null;
+
+        lock (_channelLock)
+        {
+            foreach (var ch in _outboundChannels.Values)
+            {
+                ch.Client.Dispose();
+            }
+            _outboundChannels.Clear();
+        }
+
         if (_receiveLoopTask != null) { try { await _receiveLoopTask; } catch { } }
         if (_announceLoopTask != null) { try { await _announceLoopTask; } catch { } }
     }

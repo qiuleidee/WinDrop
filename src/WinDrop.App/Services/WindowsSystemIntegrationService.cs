@@ -48,17 +48,32 @@ public sealed class WindowsSystemIntegrationService : ISystemIntegrationService
     {
         try
         {
-            string cmdArgs =
-                $"advfirewall firewall delete rule name=\"{FirewallRuleName}\" & " +
-                $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName} mDNS\" & " +
-                $"netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port} profile=private,domain,public & " +
-                $"netsh advfirewall firewall add rule name=\"{FirewallRuleName} mDNS\" dir=in action=allow protocol=UDP localport=5353 profile=private,domain,public";
+            string? exePath = Environment.ProcessPath;
+            string programRuleName = $"{FirewallRuleName} App";
 
+            var commands = new List<string>
+            {
+                $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\"",
+                $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName} mDNS\"",
+                $"netsh advfirewall firewall delete rule name=\"{programRuleName}\""
+            };
+
+            if (!string.IsNullOrWhiteSpace(exePath) && File.Exists(exePath))
+            {
+                // 先删除 Windows 首次弹窗在“公用网络”下可能自动生成的程序级 Block 规则（Block 优先级高于 Allow）
+                commands.Add($"netsh advfirewall firewall delete rule name=all program=\"{exePath}\"");
+                commands.Add($"netsh advfirewall firewall add rule name=\"{programRuleName}\" dir=in action=allow program=\"{exePath}\" enable=yes profile=private,domain,public");
+            }
+
+            commands.Add($"netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port} enable=yes profile=private,domain,public");
+            commands.Add($"netsh advfirewall firewall add rule name=\"{FirewallRuleName} mDNS\" dir=in action=allow protocol=UDP localport=5353 enable=yes profile=private,domain,public");
+
+            string joinedArgs = string.Join(" & ", commands);
             bool isAdmin = IsAdministrator();
             var psi = new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = $"/c netsh {cmdArgs}",
+                Arguments = $"/c {joinedArgs}",
                 UseShellExecute = !isAdmin,
                 Verb = isAdmin ? string.Empty : "runas",
                 CreateNoWindow = isAdmin,
@@ -71,7 +86,7 @@ public sealed class WindowsSystemIntegrationService : ISystemIntegrationService
 
             await proc.WaitForExitAsync();
             return proc.ExitCode == 0
-                ? (true, $"已成功放行 TCP {port} 与 UDP 5353（专用+公用网络）！")
+                ? (true, $"已清除公用网络阻止规则，并放行当前程序、TCP {port} 与 UDP 5353（专用+公用网络）！")
                 : (false, "未完成防火墙放行，请允许管理员权限确认。");
         }
         catch (Exception ex)
